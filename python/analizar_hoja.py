@@ -3,7 +3,7 @@
 #
 # Uso:
 #   python analizar_hoja.py <ruta_imagen>
-#
+#hola
 # Imprime un JSON en stdout que lee Laravel (app/Services/AnalizadorHoja.php):
 #   - Éxito (código 0):
 #       {"porcentaje": 12.34, "area_hoja_px": ..., "area_lesion_px": ..., "imagen_resaltada": "data:image/jpeg;base64,..."}
