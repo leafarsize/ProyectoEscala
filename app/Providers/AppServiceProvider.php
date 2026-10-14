@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Console\ServeCommand;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +25,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // `php artisan serve` solo pasa algunas variables de entorno al servidor. Sin TEMP/TMP,
+        // PHP en Windows no tiene carpeta temporal y rechaza cualquier archivo subido
+        // ("missing temporary directory"), como las fotos de /escanear.
+        if ($this->app->runningInConsole()) {
+            array_push(ServeCommand::$passthroughVariables, 'TEMP', 'TMP', 'TMPDIR');
+        }
     }
 
     /**

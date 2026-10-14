@@ -42,3 +42,7 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+# Python (análisis de hojas)
+/python/.venv
+__pycache__/
