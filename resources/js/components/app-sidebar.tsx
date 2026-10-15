@@ -24,7 +24,7 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Escanear hoja',
+        title: 'Escanear Tallo',
         href: escanear(),
         icon: ScanLine,
     },
