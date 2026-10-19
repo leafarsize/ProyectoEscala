@@ -1,12 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import {
-    BookOpen,
-    Folder,
-    LayoutGrid,
-    Menu,
-    ScanLine,
-    Search,
-} from 'lucide-react';
+import { BookOpen, Folder, Menu, Search } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -38,27 +31,14 @@ import {
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
+import { useMenuPrincipal } from '@/hooks/use-menu-principal';
 import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
-import { create as escanear } from '@/routes/escaneo';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Escanear tallo',
-        href: escanear(),
-        icon: ScanLine,
-    },
-];
 
 const rightNavItems: NavItem[] = [
     {
@@ -78,6 +58,7 @@ const activeItemStyles =
 
 export function AppHeader({ breadcrumbs = [] }: Props) {
     const page = usePage();
+    const menuPrincipal = useMenuPrincipal();
     const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
@@ -111,7 +92,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
                                         <div className="flex flex-col space-y-4">
-                                            {mainNavItems.map((item) => (
+                                            {menuPrincipal.map((item) => (
                                                 <Link
                                                     key={item.title}
                                                     href={item.href}
@@ -159,7 +140,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     <div className="ml-6 hidden h-full items-center space-x-6 lg:flex">
                         <NavigationMenu className="flex h-full items-stretch">
                             <NavigationMenuList className="flex h-full items-stretch space-x-2">
-                                {mainNavItems.map((item, index) => (
+                                {menuPrincipal.map((item, index) => (
                                     <NavigationMenuItem
                                         key={index}
                                         className="relative flex h-full items-center"

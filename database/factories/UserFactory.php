@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Rol;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -30,12 +31,34 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'rol' => Rol::Laboratorista,
+            'activo' => true,
             /* @chisel-2fa */
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
             /* @end-chisel-2fa */
         ];
+    }
+
+    /**
+     * Usuario con el rol indicado.
+     */
+    public function rol(Rol $rol): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rol' => $rol,
+        ]);
+    }
+
+    /**
+     * Cuenta desactivada por el Jefe de laboratorio.
+     */
+    public function inactivo(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'activo' => false,
+        ]);
     }
 
     /**

@@ -487,7 +487,7 @@ function EscalaSeveridad({
                     .filter((_, i) => i === 0 || i === niveles.length - 1)
                     .map((n) => `${n.nivel} = ${n.etiqueta}`)
                     .join('  ')}{' '}
-                 rangos provisionales
+                rangos provisionales
             </p>
         </div>
     );

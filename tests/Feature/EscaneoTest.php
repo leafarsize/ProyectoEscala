@@ -14,13 +14,13 @@ class EscaneoTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_are_redirected_to_the_login_page()
+    public function test_visitantes_van_al_login()
     {
         $this->get(route('escaneo.create'))->assertRedirect(route('login'));
         $this->post(route('escaneo.analizar'))->assertRedirect(route('login'));
     }
 
-    public function test_scan_page_is_displayed_with_severity_levels()
+    public function test_la_pantalla_de_escaneo_muestra_los_niveles_de_severidad()
     {
         $this->actingAs(User::factory()->create())
             ->get(route('escaneo.create'))
@@ -31,7 +31,7 @@ class EscaneoTest extends TestCase
                 ->where('maxKb', 10240));
     }
 
-    public function test_stem_is_analyzed_and_classified()
+    public function test_el_tallo_se_analiza_y_clasifica()
     {
         Process::fake([
             '*' => Process::result(output: json_encode([
@@ -59,7 +59,7 @@ class EscaneoTest extends TestCase
         Process::assertRan(fn ($process) => in_array(config('escala.script'), $process->command, true));
     }
 
-    public function test_photo_problems_are_returned_as_validation_errors()
+    public function test_los_problemas_de_la_foto_se_devuelven_como_errores_de_validacion()
     {
         Process::fake([
             '*' => Process::result(
@@ -76,7 +76,7 @@ class EscaneoTest extends TestCase
             ->assertJsonValidationErrors(['imagen' => 'No se detectó el tallo, toma la foto de nuevo.']);
     }
 
-    public function test_python_failures_return_service_unavailable()
+    public function test_si_python_falla_responde_servicio_no_disponible()
     {
         Process::fake([
             '*' => Process::result(errorOutput: 'ModuleNotFoundError: No module named cv2', exitCode: 1),
@@ -89,7 +89,7 @@ class EscaneoTest extends TestCase
             ->assertServiceUnavailable();
     }
 
-    public function test_image_is_required_and_must_be_a_valid_format()
+    public function test_la_imagen_es_obligatoria_y_debe_tener_formato_valido()
     {
         Process::fake();
 
@@ -114,7 +114,7 @@ class EscaneoTest extends TestCase
         Process::assertNothingRan();
     }
 
-    public function test_severity_levels_follow_the_configured_ranges()
+    public function test_los_niveles_de_severidad_siguen_los_rangos_configurados()
     {
         $analizador = new AnalizadorTallo;
 
@@ -129,7 +129,7 @@ class EscaneoTest extends TestCase
     /**
      * Ejecuta el script real de Python con un tallo dibujado: color crema con manchas rojizas.
      */
-    public function test_python_script_measures_damage_on_a_drawn_stem()
+    public function test_el_script_de_python_mide_el_dano_en_un_tallo_dibujado()
     {
         if (! Process::run([config('escala.python'), '-c', 'import cv2'])->successful()) {
             $this->markTestSkipped('Python con OpenCV no está instalado (ver python/requirements.txt).');
