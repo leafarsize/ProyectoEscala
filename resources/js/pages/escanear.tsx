@@ -23,7 +23,7 @@ type Resultado = {
     porcentaje: number;
     nivel: number;
     etiqueta: string;
-    area_hoja_px: number;
+    area_tallo_px: number;
     area_lesion_px: number;
     imagen_resaltada: string;
 };
@@ -88,7 +88,7 @@ export default function Escanear({
         http.clearErrors();
     };
 
-    const analizarHoja = async () => {
+    const analizarTallo = async () => {
         setErrorServidor(null);
 
         try {
@@ -117,12 +117,12 @@ export default function Escanear({
 
     return (
         <>
-            <Head title="Escanear hoja" />
+            <Head title="Escanear tallo" />
 
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
                 <Heading
-                    title="Escanear hoja"
-                    description="Obtén el porcentaje de daño y el nivel de severidad de una hoja de caña."
+                    title="Escanear tallo"
+                    description="Obtén el porcentaje de daño y el nivel de severidad de un tallo de caña."
                 />
 
                 {resultado && vistaPrevia ? (
@@ -159,7 +159,7 @@ export default function Escanear({
                                 <Button
                                     size="lg"
                                     disabled={http.processing}
-                                    onClick={analizarHoja}
+                                    onClick={analizarTallo}
                                 >
                                     {http.processing ? (
                                         <Spinner />
@@ -170,7 +170,7 @@ export default function Escanear({
                                         ? 'Analizando…'
                                         : errorServidor
                                           ? 'Reintentar'
-                                          : 'Analizar hoja'}
+                                          : 'Analizar tallo'}
                                 </Button>
                             )}
                         </CardContent>
@@ -275,7 +275,7 @@ function VistaPrevia({
         <div className="relative overflow-hidden rounded-xl bg-muted">
             <img
                 src={src}
-                alt="Vista previa de la hoja"
+                alt="Vista previa del tallo"
                 className={cn(
                     'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
                     analizando && 'opacity-40',
@@ -285,7 +285,7 @@ function VistaPrevia({
             {analizando ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
                     <Spinner className="size-6" />
-                    Analizando hoja…
+                    Analizando tallo…
                 </div>
             ) : (
                 <Button
@@ -373,8 +373,8 @@ function VistaResultado({
                             }
                             alt={
                                 vista === 'lesiones'
-                                    ? 'Hoja con las lesiones resaltadas en rojo'
-                                    : 'Foto original de la hoja'
+                                    ? 'Tallo con las lesiones resaltadas en rojo'
+                                    : 'Foto original del tallo'
                             }
                             className="mx-auto max-h-[32rem] w-full object-contain"
                         />
@@ -388,7 +388,7 @@ function VistaResultado({
                     className="sm:self-center"
                 >
                     <RotateCcw />
-                    Escanear otra hoja
+                    Escanear otro tallo
                 </Button>
             </CardContent>
         </Card>
@@ -496,7 +496,7 @@ function EscalaSeveridad({
 Escanear.layout = {
     breadcrumbs: [
         {
-            title: 'Escanear hoja',
+            title: 'Escanear tallo',
             href: create(),
         },
     ],

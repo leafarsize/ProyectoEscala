@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\FotoNoValida;
-use App\Http\Requests\AnalizarHojaRequest;
-use App\Services\AnalizadorHoja;
+use App\Http\Requests\AnalizarTalloRequest;
+use App\Services\AnalizadorTallo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +15,7 @@ use RuntimeException;
 class EscaneoController extends Controller
 {
     /**
-     * Pantalla para tomar o importar la foto de la hoja.
+     * Pantalla para tomar o importar la foto del tallo.
      */
     public function create(): Response
     {
@@ -28,12 +28,12 @@ class EscaneoController extends Controller
     /**
      * Analiza la foto y devuelve el resultado. No se guarda nada (demo).
      */
-    public function analizar(AnalizarHojaRequest $request, AnalizadorHoja $analizador): JsonResponse
+    public function analizar(AnalizarTalloRequest $request, AnalizadorTallo $analizador): JsonResponse
     {
         try {
             $resultado = $analizador->analizar($request->file('imagen')->getRealPath());
         } catch (FotoNoValida $e) {
-            // Sirve para calibrar los umbrales de analizar_hoja.py con fotos reales
+            // Sirve para calibrar los umbrales de analizar_tallo.py con fotos reales
             Log::info('Foto rechazada por el análisis', [
                 'motivo' => $e->getMessage(),
                 'archivo' => $request->file('imagen')->getClientOriginalName(),

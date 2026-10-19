@@ -1,26 +1,25 @@
-# analizar_hoja.py
-# Cuantificación de daño (lesiones) en una hoja de caña.
+# analizar_tallo.py
+# Cuantificación de daño (lesiones) en un tallo de caña.
 #
 # Uso:
-#   python analizar_hoja.py <ruta_imagen>
+#   python analizar_tallo.py <ruta_imagen>
 #hola
-# Imprime un JSON en stdout que lee Laravel (app/Services/AnalizadorHoja.php):
+# Imprime un JSON en stdout que lee Laravel (app/Services/AnalizadorTallo.php):
 #   - Éxito (código 0):
-#       {"porcentaje": 12.34, "area_hoja_px": ..., "area_lesion_px": ..., "imagen_resaltada": "data:image/jpeg;base64,..."}
+#       {"porcentaje": 12.34, "area_tallo_px": ..., "area_lesion_px": ..., "imagen_resaltada": "data:image/jpeg;base64,..."}
 #   - Foto no válida (código 2), el mensaje se muestra al usuario:
-#       {"error": "No se detectó la hoja, toma la foto de nuevo."}
+#       {"error": "No se detectó el tallo, toma la foto de nuevo."}
 #   - Cualquier otro código es un error interno (el detalle va a stderr).
 #
 # Basado en docs/lesiones3.py (script original del equipo):
-#   1) Segmenta la hoja quitando el fondo blanco (S bajo y V alto) y respetando
+#   1) Segmenta el tallo quitando el fondo blanco (S bajo y V alto) y respetando
 #      la transparencia de PNG; se queda con el contorno principal.
 #   2) Toma el color mediano de la muestra como "tejido sano" y marca como lesión lo que se
-#      aleja de ese color siendo más oscuro o más rojizo (pústulas, manchas café, necrosis,
-#      amarillamiento en hoja verde). Funciona igual con hojas verdes y tallos color crema.
+#      aleja de ese color siendo más oscuro o más rojizo (manchas café o rojizas, necrosis).
 #   3) Reporta % de lesión relativo al área de la muestra y una imagen con las lesiones en rojo.
 #
 # Diferencia con lesiones3.py: ahí la lesión era "lo más oscuro según Otsu". Otsu siempre
-# parte la muestra en dos grupos, así que una hoja sana salía con ~30-40 % de "daño".
+# parte la muestra en dos grupos, así que una muestra sana salía con ~30-40 % de "daño".
 # Supuesto: el tejido sano ocupa más de la mitad de la muestra (si no, la mediana es el daño).
 
 import base64
@@ -45,22 +44,22 @@ DIFERENCIA_LESION = 25
 # Peso del brillo (L) en esa distancia: < 1 para que las sombras suaves no cuenten
 PESO_BRILLO = 0.5
 # Una lesión además debe ser más oscura que el tejido sano, o más rojiza por al menos esto
-# (excluye nervaduras y reflejos, que son más claros pero del mismo tono)
+# (excluye reflejos y la cera del tallo, que son más claros pero del mismo tono)
 ROJIZO_MIN = 8
 
 # Ignorar manchas que tocan la orilla de la muestra: suelen ser fondo (mesa, sombra) que
-# quedó dentro del recorte. Desactivarlo si interesa medir daño en el margen de la hoja.
+# quedó dentro del recorte. Desactivarlo si interesa medir daño en el margen del tallo.
 IGNORAR_ORILLA = True
 
 # Limpieza morfológica
-K_HOJA = (7, 7)
+K_TALLO = (7, 7)
 K_LESION = (3, 3)
 
 # Validación de la foto
 BRILLO_MINIMO = 50  # promedio de gris; menos = foto muy oscura
 NITIDEZ_MINIMA = 20  # varianza del Laplaciano; menos = foto desenfocada
-AREA_HOJA_MIN = 0.03  # fracción de la imagen; menos = no hay hoja
-AREA_HOJA_MAX = 0.97  # fracción de la imagen; más = no se separó del fondo
+AREA_TALLO_MIN = 0.03  # fracción de la imagen; menos = no hay tallo
+AREA_TALLO_MAX = 0.97  # fracción de la imagen; más = no se separó del fondo
 # ---------------------------------------------------
 
 
@@ -110,42 +109,42 @@ def validar_calidad(bgr):
         raise FotoNoValida("La foto está desenfocada. Mantén el celular quieto y tómala de nuevo.")
 
 
-def segmentar_hoja(hsv, mascara_alpha):
-    """Máscara de la hoja (255) y su contorno principal."""
+def segmentar_tallo(hsv, mascara_alpha):
+    """Máscara del tallo (255) y su contorno principal."""
     _, s, v = cv2.split(hsv)
 
     fondo_blanco = (s <= S_BG) & (v >= V_BG)
     mascara = (~fondo_blanco).astype(np.uint8) * 255
-    # Excluir transparencia (PNG) para que el "negro" no cuente como hoja
+    # Excluir transparencia (PNG) para que el "negro" no cuente como tallo
     mascara = cv2.bitwise_and(mascara, mascara_alpha)
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, K_HOJA)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, K_TALLO)
     mascara = cv2.morphologyEx(mascara, cv2.MORPH_OPEN, kernel, iterations=1)
     mascara = cv2.morphologyEx(mascara, cv2.MORPH_CLOSE, kernel, iterations=1)
 
     contornos, _ = cv2.findContours(mascara, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contornos:
-        raise FotoNoValida("No se detectó la hoja, toma la foto de nuevo.")
+        raise FotoNoValida("No se detectó el tallo, toma la foto de nuevo.")
 
     # Como en lesiones3: preferir contornos que no tocan el borde (sombras, orillas de la mesa).
-    # Pero una hoja de caña es larga y casi siempre toca el borde, así que solo se descartan
+    # Pero un tallo de caña es largo y casi siempre toca el borde, así que solo se descartan
     # si queda un contorno interior de tamaño razonable.
     alto, ancho = mascara.shape[:2]
     interiores = [c for c in contornos if not toca_borde(c, ancho, alto)]
-    if interiores and cv2.contourArea(max(interiores, key=cv2.contourArea)) >= AREA_HOJA_MIN * alto * ancho:
+    if interiores and cv2.contourArea(max(interiores, key=cv2.contourArea)) >= AREA_TALLO_MIN * alto * ancho:
         contornos = interiores
 
     contorno = max(contornos, key=cv2.contourArea)
-    mascara_hoja = np.zeros_like(mascara)
-    cv2.drawContours(mascara_hoja, [contorno], -1, 255, thickness=cv2.FILLED)
+    mascara_tallo = np.zeros_like(mascara)
+    cv2.drawContours(mascara_tallo, [contorno], -1, 255, thickness=cv2.FILLED)
 
-    fraccion = cv2.countNonZero(mascara_hoja) / (alto * ancho)
-    if fraccion < AREA_HOJA_MIN:
-        raise FotoNoValida("No se detectó la hoja, toma la foto de nuevo.")
-    if fraccion > AREA_HOJA_MAX:
-        raise FotoNoValida("No se pudo separar la hoja del fondo. Colócala sobre un fondo blanco liso.")
+    fraccion = cv2.countNonZero(mascara_tallo) / (alto * ancho)
+    if fraccion < AREA_TALLO_MIN:
+        raise FotoNoValida("No se detectó el tallo, toma la foto de nuevo.")
+    if fraccion > AREA_TALLO_MAX:
+        raise FotoNoValida("No se pudo separar el tallo del fondo. Colócalo sobre un fondo blanco liso.")
 
-    return mascara_hoja, contorno
+    return mascara_tallo, contorno
 
 
 def toca_borde(contorno, ancho, alto):
@@ -153,9 +152,9 @@ def toca_borde(contorno, ancho, alto):
     return x <= 0 or y <= 0 or x + w >= ancho - 1 or y + h >= alto - 1
 
 
-def segmentar_lesiones(bgr, mascara_hoja):
+def segmentar_lesiones(bgr, mascara_tallo):
     lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-    dentro = mascara_hoja > 0
+    dentro = mascara_tallo > 0
 
     # Color del tejido sano = mediana de la muestra
     sano = np.median(lab[dentro], axis=0)
@@ -170,14 +169,14 @@ def segmentar_lesiones(bgr, mascara_hoja):
     lesion = cv2.morphologyEx(lesion, cv2.MORPH_OPEN, kernel, iterations=1)
 
     if IGNORAR_ORILLA:
-        lesion = quitar_manchas_en_orilla(lesion, mascara_hoja)
+        lesion = quitar_manchas_en_orilla(lesion, mascara_tallo)
 
     return lesion
 
 
-def quitar_manchas_en_orilla(lesion, mascara_hoja):
+def quitar_manchas_en_orilla(lesion, mascara_tallo):
     """Quita las manchas conectadas con el contorno de la muestra (fondo dentro del recorte)."""
-    orilla = mascara_hoja - cv2.erode(mascara_hoja, np.ones((5, 5), np.uint8))
+    orilla = mascara_tallo - cv2.erode(mascara_tallo, np.ones((5, 5), np.uint8))
 
     _, etiquetas = cv2.connectedComponents(lesion)
     en_orilla = np.unique(etiquetas[(orilla > 0) & (lesion > 0)])
@@ -194,7 +193,7 @@ def imagen_resaltada(bgr, mascara_lesion, contorno):
     idx = mascara_lesion > 0
     overlay[idx] = (0.5 * overlay[idx] + 0.5 * np.array([0, 0, 255])).astype(np.uint8)
 
-    # Contorno de la hoja (verde)
+    # Contorno del tallo (verde)
     cv2.drawContours(overlay, [contorno], -1, (0, 255, 0), thickness=2)
 
     _, jpg = cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -206,15 +205,15 @@ def analizar(ruta: str) -> dict:
     validar_calidad(bgr)
 
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-    mascara_hoja, contorno = segmentar_hoja(hsv, mascara_alpha)
-    mascara_lesion = segmentar_lesiones(bgr, mascara_hoja)
+    mascara_tallo, contorno = segmentar_tallo(hsv, mascara_alpha)
+    mascara_lesion = segmentar_lesiones(bgr, mascara_tallo)
 
-    area_hoja = int(cv2.countNonZero(mascara_hoja))
+    area_tallo = int(cv2.countNonZero(mascara_tallo))
     area_lesion = int(cv2.countNonZero(mascara_lesion))
 
     return {
-        "porcentaje": round(100 * area_lesion / area_hoja, 2),
-        "area_hoja_px": area_hoja,
+        "porcentaje": round(100 * area_lesion / area_tallo, 2),
+        "area_tallo_px": area_tallo,
         "area_lesion_px": area_lesion,
         "imagen_resaltada": imagen_resaltada(bgr, mascara_lesion, contorno),
     }
@@ -222,7 +221,7 @@ def analizar(ruta: str) -> dict:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Uso: python analizar_hoja.py <ruta_imagen>", file=sys.stderr)
+        print("Uso: python analizar_tallo.py <ruta_imagen>", file=sys.stderr)
         return 1
 
     try:

@@ -8,17 +8,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Análisis de hojas con Python
+    | Análisis de tallos con Python
     |--------------------------------------------------------------------------
     |
-    | Laravel ejecuta python/analizar_hoja.py con este intérprete. Por defecto
+    | Laravel ejecuta python/analizar_tallo.py con este intérprete. Por defecto
     | usa el entorno virtual python/.venv (ver python/requirements.txt).
     |
     */
 
     'python' => env('ESCALA_PYTHON', file_exists($venv) ? $venv : 'python'),
 
-    'script' => base_path('python/analizar_hoja.py'),
+    'script' => base_path('python/analizar_tallo.py'),
 
     'timeout' => (int) env('ESCALA_TIMEOUT', 60),
 

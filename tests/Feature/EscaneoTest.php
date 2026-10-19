@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Services\AnalizadorHoja;
+use App\Services\AnalizadorTallo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
@@ -31,12 +31,12 @@ class EscaneoTest extends TestCase
                 ->where('maxKb', 10240));
     }
 
-    public function test_leaf_is_analyzed_and_classified()
+    public function test_stem_is_analyzed_and_classified()
     {
         Process::fake([
             '*' => Process::result(output: json_encode([
                 'porcentaje' => 14.14,
-                'area_hoja_px' => 184656,
+                'area_tallo_px' => 184656,
                 'area_lesion_px' => 26109,
                 'imagen_resaltada' => 'data:image/jpeg;base64,AAAA',
             ])),
@@ -44,14 +44,14 @@ class EscaneoTest extends TestCase
 
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
-                'imagen' => UploadedFile::fake()->image('hoja.png', 800, 400),
+                'imagen' => UploadedFile::fake()->image('tallo.png', 800, 400),
             ])
             ->assertOk()
             ->assertExactJson([
                 'porcentaje' => 14.14,
                 'nivel' => 3,
                 'etiqueta' => 'Moderado alto',
-                'area_hoja_px' => 184656,
+                'area_tallo_px' => 184656,
                 'area_lesion_px' => 26109,
                 'imagen_resaltada' => 'data:image/jpeg;base64,AAAA',
             ]);
@@ -63,17 +63,17 @@ class EscaneoTest extends TestCase
     {
         Process::fake([
             '*' => Process::result(
-                output: json_encode(['error' => 'No se detectó la hoja, toma la foto de nuevo.']),
+                output: json_encode(['error' => 'No se detectó el tallo, toma la foto de nuevo.']),
                 exitCode: 2,
             ),
         ]);
 
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
-                'imagen' => UploadedFile::fake()->image('hoja.png'),
+                'imagen' => UploadedFile::fake()->image('tallo.png'),
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['imagen' => 'No se detectó la hoja, toma la foto de nuevo.']);
+            ->assertJsonValidationErrors(['imagen' => 'No se detectó el tallo, toma la foto de nuevo.']);
     }
 
     public function test_python_failures_return_service_unavailable()
@@ -84,7 +84,7 @@ class EscaneoTest extends TestCase
 
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
-                'imagen' => UploadedFile::fake()->image('hoja.png'),
+                'imagen' => UploadedFile::fake()->image('tallo.png'),
             ])
             ->assertServiceUnavailable();
     }
@@ -97,17 +97,17 @@ class EscaneoTest extends TestCase
 
         $this->actingAs($user)
             ->postJson(route('escaneo.analizar'))
-            ->assertJsonValidationErrors(['imagen' => 'Toma o importa una foto de la hoja.']);
+            ->assertJsonValidationErrors(['imagen' => 'Toma o importa una foto del tallo.']);
 
         $this->actingAs($user)
             ->postJson(route('escaneo.analizar'), [
-                'imagen' => UploadedFile::fake()->create('hoja.pdf', 100, 'application/pdf'),
+                'imagen' => UploadedFile::fake()->create('tallo.pdf', 100, 'application/pdf'),
             ])
             ->assertJsonValidationErrors(['imagen' => 'Formato no válido. Usa una imagen JPG, PNG o WEBP.']);
 
         $this->actingAs($user)
             ->postJson(route('escaneo.analizar'), [
-                'imagen' => UploadedFile::fake()->image('hoja.png')->size(10241),
+                'imagen' => UploadedFile::fake()->image('tallo.png')->size(10241),
             ])
             ->assertJsonValidationErrors(['imagen' => 'La imagen supera el tamaño máximo de 10 MB.']);
 
@@ -116,7 +116,7 @@ class EscaneoTest extends TestCase
 
     public function test_severity_levels_follow_the_configured_ranges()
     {
-        $analizador = new AnalizadorHoja;
+        $analizador = new AnalizadorTallo;
 
         $this->assertSame(['nivel' => 0, 'etiqueta' => 'Sano'], $analizador->clasificar(0));
         $this->assertSame(['nivel' => 1, 'etiqueta' => 'Leve'], $analizador->clasificar(1));
@@ -127,9 +127,9 @@ class EscaneoTest extends TestCase
     }
 
     /**
-     * Ejecuta el script real de Python con una hoja dibujada: verde con manchas café.
+     * Ejecuta el script real de Python con un tallo dibujado: color crema con manchas rojizas.
      */
-    public function test_python_script_measures_damage_on_a_drawn_leaf()
+    public function test_python_script_measures_damage_on_a_drawn_stem()
     {
         if (! Process::run([config('escala.python'), '-c', 'import cv2'])->successful()) {
             $this->markTestSkipped('Python con OpenCV no está instalado (ver python/requirements.txt).');
@@ -137,22 +137,22 @@ class EscaneoTest extends TestCase
 
         $img = imagecreatetruecolor(800, 400);
         imagefill($img, 0, 0, imagecolorallocate($img, 240, 240, 240));
-        imagefilledellipse($img, 400, 200, 700, 200, imagecolorallocate($img, 70, 150, 40));
-        $cafe = imagecolorallocate($img, 150, 80, 30);
+        imagefilledellipse($img, 400, 200, 700, 200, imagecolorallocate($img, 215, 195, 140));
+        $rojizo = imagecolorallocate($img, 150, 60, 40);
         foreach ([[250, 180], [400, 220], [550, 190]] as [$x, $y]) {
-            imagefilledellipse($img, $x, $y, 60, 40, $cafe);
+            imagefilledellipse($img, $x, $y, 60, 40, $rojizo);
         }
 
-        $ruta = tempnam(sys_get_temp_dir(), 'hoja').'.png';
+        $ruta = tempnam(sys_get_temp_dir(), 'tallo').'.png';
         imagepng($img, $ruta);
 
         try {
-            $resultado = (new AnalizadorHoja)->analizar($ruta);
+            $resultado = (new AnalizadorTallo)->analizar($ruta);
         } finally {
             unlink($ruta);
         }
 
-        // 3 manchas de 60x40 sobre una hoja de 700x200 ≈ 5.1 %
+        // 3 manchas de 60x40 sobre un tallo de 700x200 ≈ 5.1 %
         $this->assertEqualsWithDelta(5.1, $resultado['porcentaje'], 0.5);
         $this->assertSame(2, $resultado['nivel']);
         $this->assertStringStartsWith('data:image/jpeg;base64,', $resultado['imagen_resaltada']);

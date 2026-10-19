@@ -8,7 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 
-class AnalizarHojaRequest extends FormRequest
+class AnalizarTalloRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -49,7 +49,7 @@ class AnalizarHojaRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'imagen.required' => 'Toma o importa una foto de la hoja.',
+            'imagen.required' => 'Toma o importa una foto del tallo.',
             'imagen.file' => 'No se pudo subir la imagen. Intenta de nuevo.',
             'imagen.uploaded' => 'No se pudo subir la imagen. Intenta de nuevo.',
             'imagen.mimes' => 'Formato no válido. Usa una imagen JPG, PNG o WEBP.',

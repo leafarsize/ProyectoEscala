@@ -43,6 +43,6 @@ yarn-error.log
 /opencode.json
 /opencode.jsonc
 
-# Python (análisis de hojas)
+# Python (análisis de tallos)
 /python/.venv
 __pycache__/
