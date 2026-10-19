@@ -1,0 +1,150 @@
+// Proyecto Escala — modelo entidad-relación propuesto
+// Pegar en https://dbdiagram.io/d (editor de la izquierda)
+
+Project proyecto_escala {
+  database_type: 'PostgreSQL'
+  Note: 'Escaneo de daño en tallos de caña, tratamientos, avances y accesos temporales.'
+}
+
+Enum rol_usuario {
+  laboratorista
+  productor [note: 'Dueño del cultivo; solo ve el % de daño de sus tratamientos']
+  jefe_laboratorio
+}
+
+Enum estado_tratamiento {
+  abierto
+  cerrado
+}
+
+Table usuarios {
+  id bigserial [pk]
+  name varchar(255) [not null, note: 'Nombre completo (Fortify usa "name")']
+  email varchar(255) [not null, unique]
+  email_verified_at timestamp
+  password varchar(255) [not null]
+  rol rol_usuario [not null, default: 'laboratorista']
+  debe_cambiar_password boolean [not null, default: false, note: 'true al crearlo el jefe con contraseña temporal']
+  creado_por bigint [note: 'Jefe de laboratorio que dio de alta la cuenta']
+  two_factor_secret text
+  two_factor_recovery_codes text
+  two_factor_confirmed_at timestamp
+  remember_token varchar(100)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table tratamientos {
+  id bigserial [pk]
+  usuario_id bigint [not null, note: 'Laboratorista que lo creó']
+  productor_id bigint [note: 'Productor dueño del cultivo']
+  nombre varchar(255) [not null]
+  variedad varchar(100) [not null, note: 'Variedad de caña']
+  lote varchar(100) [not null, note: 'Lote o parcela']
+  fecha_inicio date [not null]
+  condiciones text [note: 'Condiciones del ensayo']
+  notas text
+  adjuntos jsonb [note: 'Rutas de fotos/documentos (JPG, PNG, PDF)']
+  estado estado_tratamiento [not null, default: 'abierto']
+  cerrado_at timestamp [note: 'Al cerrarse ya no admite avances ni escaneos']
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (usuario_id, estado)
+    productor_id
+    variedad
+  }
+}
+
+Table accesos_tratamiento {
+  id bigserial [pk]
+  tratamiento_id bigint [not null]
+  usuario_id bigint [not null, note: 'Laboratorista invitado']
+  otorgado_por bigint [not null, note: 'Dueño que dio el acceso']
+  expira_at timestamp [not null, note: 'Debe ser futura al guardarse']
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (tratamiento_id, usuario_id) [unique]
+    (usuario_id, expira_at)
+  }
+}
+
+Table escaneos {
+  id bigserial [pk]
+  usuario_id bigint [not null, note: 'Quién escaneó']
+  tratamiento_id bigint [note: 'NULL = solo en el historial']
+  imagen_original varchar(255) [not null, note: 'Ruta en storage']
+  imagen_resaltada varchar(255) [not null, note: 'Lesiones marcadas']
+  porcentaje numeric(5,2) [not null, note: '% de área dañada']
+  nivel smallint [not null, note: 'Severidad 0 a 5']
+  etiqueta varchar(50) [not null, note: 'Se guarda tal cual: los rangos de config/escala.php pueden cambiar']
+  area_tallo_px integer [not null]
+  area_lesion_px integer [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (usuario_id, created_at)
+    (tratamiento_id, created_at)
+  }
+}
+
+Table avances {
+  id bigserial [pk]
+  tratamiento_id bigint [not null]
+  usuario_id bigint [not null, note: 'Autor; solo él puede editarlo']
+  escaneo_id bigint [note: 'Escaneo vinculado (opcional)']
+  titulo varchar(255)
+  nota text
+  fotos jsonb [note: 'Rutas de fotos; nota o fotos, al menos una']
+  editado_at timestamp [note: 'Muestra "(editado)" con fecha']
+  created_at timestamp [note: 'Fecha automática del avance']
+  updated_at timestamp
+
+  Indexes {
+    (tratamiento_id, created_at)
+  }
+}
+
+Table password_reset_tokens {
+  email varchar(255) [pk, note: 'Relación lógica con usuarios.email (sin FK, estructura de Laravel)']
+  token varchar(255) [not null]
+  created_at timestamp
+}
+
+Table sessions {
+  id varchar(255) [pk]
+  user_id bigint [note: 'Laravel exige este nombre de columna']
+  ip_address varchar(45)
+  user_agent text
+  payload text [not null]
+  last_activity integer [not null]
+
+  Indexes {
+    user_id
+    last_activity
+  }
+}
+
+// Relaciones
+Ref: usuarios.creado_por > usuarios.id [delete: set null]
+
+Ref: tratamientos.usuario_id > usuarios.id [delete: restrict]
+Ref: tratamientos.productor_id > usuarios.id [delete: restrict]
+
+Ref: accesos_tratamiento.tratamiento_id > tratamientos.id [delete: cascade]
+Ref: accesos_tratamiento.usuario_id > usuarios.id [delete: cascade]
+Ref: accesos_tratamiento.otorgado_por > usuarios.id [delete: restrict]
+
+Ref: escaneos.usuario_id > usuarios.id [delete: restrict]
+Ref: escaneos.tratamiento_id > tratamientos.id [delete: set null]
+
+Ref: avances.tratamiento_id > tratamientos.id [delete: cascade]
+Ref: avances.usuario_id > usuarios.id [delete: restrict]
+Ref: avances.escaneo_id > escaneos.id [delete: set null]
+
+Ref: sessions.user_id > usuarios.id
+Ref: password_reset_tokens.email - usuarios.email
