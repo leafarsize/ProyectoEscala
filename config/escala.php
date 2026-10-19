@@ -44,4 +44,16 @@ return [
         ['nivel' => 5, 'etiqueta' => 'Muy severo', 'hasta' => null],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Usuarios de prueba
+    |--------------------------------------------------------------------------
+    |
+    | Contraseña de las cuentas que crea database/seeders/UsuariosSeeder.php.
+    | Sin valor por defecto a propósito: nunca debe quedar en el repositorio.
+    |
+    */
+
+    'seed_password' => env('SEED_PASSWORD'),
+
 ];

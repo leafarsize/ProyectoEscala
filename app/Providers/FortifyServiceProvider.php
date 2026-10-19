@@ -2,17 +2,17 @@
 
 namespace App\Providers;
 
-/* @chisel-registration */
-
-use App\Actions\Fortify\CreateNewUser;
-/* @end-chisel-registration */
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Middleware\VerificarCuentaActiva;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
@@ -33,6 +33,7 @@ class FortifyServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureActions();
+        $this->configurarAutenticacion();
         $this->configureViews();
         $this->configureRateLimiting();
     }
@@ -43,9 +44,35 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureActions(): void
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
-        /* @chisel-registration */
-        Fortify::createUsersUsing(CreateNewUser::class);
-        /* @end-chisel-registration */
+    }
+
+    /**
+     * Verifica correo y contraseña y bloquea las cuentas desactivadas.
+     * Fortify usa esta función tanto en el login normal como en el que pasa por 2FA.
+     */
+    private function configurarAutenticacion(): void
+    {
+        Fortify::authenticateUsing(function (Request $request): ?User {
+            $usuario = User::where('email', $request->input(Fortify::username()))->first();
+
+            if (! $usuario || ! Hash::check((string) $request->input('password'), $usuario->password)) {
+                return null; // Fortify responde "These credentials do not match our records."
+            }
+
+            // Se revisa después de la contraseña para no revelar qué correos existen
+            if (! $usuario->activo) {
+                throw ValidationException::withMessages([
+                    Fortify::username() => VerificarCuentaActiva::MENSAJE,
+                ]);
+            }
+
+            // Mantiene el rehash on login (p. ej. al subir BCRYPT_ROUNDS)
+            if (Hash::needsRehash($usuario->password)) {
+                $usuario->forceFill(['password' => $request->input('password')])->save();
+            }
+
+            return $usuario;
+        });
     }
 
     /**
@@ -67,12 +94,6 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/forgot-password', [
             'status' => $request->session()->get('status'),
         ]));
-
-        /* @chisel-registration */
-        Fortify::registerView(fn () => Inertia::render('auth/register', [
-            'passwordRules' => Password::defaults()->toPasswordRulesString(),
-        ]));
-        /* @end-chisel-registration */
 
         /* @chisel-2fa */
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
