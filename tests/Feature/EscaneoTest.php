@@ -3,17 +3,25 @@
 namespace Tests\Feature;
 
 use App\Exceptions\FotoNoValida;
+use App\Models\Escaneo;
+use App\Models\Tratamiento;
 use App\Models\User;
 use App\Services\AnalizadorTallo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class EscaneoTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Datos de un tratamiento nuevo (los laboratoristas guardan cada escaneo en uno).
+     */
+    private const TRATAMIENTO = ['nombre' => 'Ensayo Fusarium', 'variedad' => 'CP 72-2086', 'lote' => 'Lote 3'];
 
     public function test_visitantes_van_al_login()
     {
@@ -34,6 +42,7 @@ class EscaneoTest extends TestCase
 
     public function test_el_tallo_se_analiza_y_clasifica()
     {
+        Storage::fake('local');
         Process::fake([
             '*' => Process::result(output: json_encode([
                 'porcentaje' => 14.14,
@@ -46,6 +55,7 @@ class EscaneoTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
                 'imagen' => UploadedFile::fake()->image('tallo.png', 800, 400),
+                ...self::TRATAMIENTO,
             ])
             ->assertOk()
             ->assertExactJson([
@@ -55,6 +65,8 @@ class EscaneoTest extends TestCase
                 'area_tallo_px' => 184656,
                 'area_lesion_px' => 26109,
                 'imagen_resaltada' => 'data:image/jpeg;base64,AAAA',
+                'escaneo_id' => Escaneo::sole()->id,
+                'tratamiento' => ['id' => Tratamiento::sole()->id, 'nombre' => 'Ensayo Fusarium', 'escaneos' => 1],
             ]);
 
         Process::assertRan(fn ($process) => in_array(config('escala.script'), $process->command, true));
@@ -72,6 +84,7 @@ class EscaneoTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
                 'imagen' => UploadedFile::fake()->image('tallo.png'),
+                ...self::TRATAMIENTO,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['imagen' => 'No se detectó el tallo, toma la foto de nuevo.']);
@@ -86,8 +99,11 @@ class EscaneoTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->postJson(route('escaneo.analizar'), [
                 'imagen' => UploadedFile::fake()->image('tallo.png'),
+                ...self::TRATAMIENTO,
             ])
             ->assertServiceUnavailable();
+
+        $this->assertSame(0, Tratamiento::count());
     }
 
     public function test_la_imagen_es_obligatoria_y_debe_tener_formato_valido()

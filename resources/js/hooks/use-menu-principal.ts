@@ -9,7 +9,7 @@ import {
 import { dashboard } from '@/routes';
 import { create as escanear } from '@/routes/escaneo';
 import { usuarios } from '@/routes/jefe';
-import { escaneos } from '@/routes/laboratorio';
+import { index as tratamientos } from '@/routes/laboratorio/tratamientos';
 import { resultados } from '@/routes/productor';
 import type { NavItem, Rol } from '@/types';
 
@@ -23,8 +23,8 @@ const items: NavItemConRoles[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
     { title: 'Escanear tallo', href: escanear(), icon: ScanLine },
     {
-        title: 'Escaneos',
-        href: escaneos(),
+        title: 'Tratamientos',
+        href: tratamientos(),
         icon: ClipboardList,
         roles: ['laboratorista', 'jefe_laboratorio'],
     },
