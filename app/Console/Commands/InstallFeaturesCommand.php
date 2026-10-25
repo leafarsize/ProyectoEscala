@@ -40,13 +40,9 @@ class InstallFeaturesCommand extends Command
         /** @var Script $script */
         $script = require base_path('chisel.php');
 
-        $providedAnswers = $this->option('answers') === null
-            ? []
-            : json_decode((string) $this->option('answers'), true, 512, JSON_THROW_ON_ERROR);
-
+        // API de laravel/chisel 0.1: ask(...)->withAnswers() reúne las respuestas y run() las aplica
         $answers = $script
-            ->collectAnswers()
-            ->onQuestion(fn (Question $question) => multiselect(
+            ->ask(fn (Question $question) => multiselect(
                 label: $question->label,
                 options: $question->options,
                 default: $question->default ?? [],
@@ -54,7 +50,7 @@ class InstallFeaturesCommand extends Command
                 hint: $question->hint,
             ))
             ->interactive($this->input->isInteractive())
-            ->withAnswers($providedAnswers);
+            ->withAnswers($this->providedAnswers());
 
         $skipNode = $this->shouldSkipNode();
 
@@ -62,13 +58,31 @@ class InstallFeaturesCommand extends Command
             $this->installNodeDependencies();
         }
 
-        $script->chisel($answers);
+        $script->run($answers);
 
         if (! $skipNode) {
             $this->buildAssets();
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Respuestas pasadas con --answers='{"pregunta": [...]}'.
+     *
+     * @return array<string, mixed>
+     */
+    protected function providedAnswers(): array
+    {
+        $json = $this->option('answers');
+
+        if (! is_string($json)) {
+            return [];
+        }
+
+        $answers = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+        return is_array($answers) ? $answers : [];
     }
 
     protected function shouldDeferInstallerHooks(): bool
