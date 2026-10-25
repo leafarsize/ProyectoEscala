@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\FotoNoValida;
 use App\Models\User;
 use App\Services\AnalizadorTallo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,8 +50,8 @@ class EscaneoTest extends TestCase
             ->assertOk()
             ->assertExactJson([
                 'porcentaje' => 14.14,
-                'nivel' => 3,
-                'etiqueta' => 'Moderado alto',
+                'nivel' => 2,
+                'etiqueta' => 'Moderado bajo',
                 'area_tallo_px' => 184656,
                 'area_lesion_px' => 26109,
                 'imagen_resaltada' => 'data:image/jpeg;base64,AAAA',
@@ -119,11 +120,23 @@ class EscaneoTest extends TestCase
         $analizador = new AnalizadorTallo;
 
         $this->assertSame(['nivel' => 0, 'etiqueta' => 'Sano'], $analizador->clasificar(0));
-        $this->assertSame(['nivel' => 1, 'etiqueta' => 'Leve'], $analizador->clasificar(1));
-        $this->assertSame(['nivel' => 2, 'etiqueta' => 'Moderado bajo'], $analizador->clasificar(9.99));
-        $this->assertSame(['nivel' => 3, 'etiqueta' => 'Moderado alto'], $analizador->clasificar(10));
-        $this->assertSame(['nivel' => 4, 'etiqueta' => 'Severo'], $analizador->clasificar(49.9));
+        $this->assertSame(['nivel' => 0, 'etiqueta' => 'Sano'], $analizador->clasificar(3.49));
+        $this->assertSame(['nivel' => 1, 'etiqueta' => 'Leve'], $analizador->clasificar(3.5));
+        $this->assertSame(['nivel' => 2, 'etiqueta' => 'Moderado bajo'], $analizador->clasificar(9));
+        $this->assertSame(['nivel' => 3, 'etiqueta' => 'Moderado alto'], $analizador->clasificar(18));
+        $this->assertSame(['nivel' => 4, 'etiqueta' => 'Severo'], $analizador->clasificar(35.99));
+        $this->assertSame(['nivel' => 5, 'etiqueta' => 'Muy severo'], $analizador->clasificar(36));
         $this->assertSame(['nivel' => 5, 'etiqueta' => 'Muy severo'], $analizador->clasificar(100));
+    }
+
+    public function test_los_valores_representativos_de_la_escala_de_natalia_caen_en_su_nivel()
+    {
+        $analizador = new AnalizadorTallo;
+
+        // Escala diagramática de la tesis (Fig. 7.1): nivel => % representativo
+        foreach ([0 => 0, 1 => 7, 2 => 11, 3 => 18, 4 => 28, 5 => 44] as $nivel => $porcentaje) {
+            $this->assertSame($nivel, $analizador->clasificar($porcentaje)['nivel']);
+        }
     }
 
     /**
@@ -154,7 +167,106 @@ class EscaneoTest extends TestCase
 
         // 3 manchas de 60x40 sobre un tallo de 700x200 ≈ 5.1 %
         $this->assertEqualsWithDelta(5.1, $resultado['porcentaje'], 0.5);
-        $this->assertSame(2, $resultado['nivel']);
+        $this->assertSame(1, $resultado['nivel']);
         $this->assertStringStartsWith('data:image/jpeg;base64,', $resultado['imagen_resaltada']);
+    }
+
+    /**
+     * Como las imágenes de referencia de Natalia: corte del tallo en PNG con fondo transparente.
+     */
+    public function test_el_script_de_python_analiza_un_png_con_fondo_transparente()
+    {
+        $this->saltarSinPython();
+
+        $ruta = $this->corteTransparente(conLesion: true);
+
+        try {
+            $resultado = (new AnalizadorTallo)->analizar($ruta);
+        } finally {
+            unlink($ruta);
+        }
+
+        // Lesión (con halo) elíptica de 120x160 sobre un corte de 300x900: π·60·80 / 270000 ≈ 5.6 %
+        $this->assertEqualsWithDelta(5.6, $resultado['porcentaje'], 1.0);
+        $this->assertSame(1, $resultado['nivel']);
+    }
+
+    /**
+     * El método anterior (Otsu) marcaba ~15 % de daño en un tallo sano.
+     */
+    public function test_el_script_de_python_da_cero_en_un_tallo_sano()
+    {
+        $this->saltarSinPython();
+
+        $ruta = $this->corteTransparente(conLesion: false);
+
+        try {
+            $resultado = (new AnalizadorTallo)->analizar($ruta);
+        } finally {
+            unlink($ruta);
+        }
+
+        $this->assertLessThan(1, $resultado['porcentaje']);
+        $this->assertSame(0, $resultado['nivel']);
+    }
+
+    public function test_el_script_de_python_rechaza_una_foto_desenfocada()
+    {
+        $this->saltarSinPython();
+
+        // Como una foto de celular: el corte sobre papel blanco, sin transparencia, y movida
+        $ruta = $this->corteTransparente(conLesion: true);
+        $corte = imagecreatefrompng($ruta);
+        $foto = imagecreatetruecolor(imagesx($corte), imagesy($corte));
+        imagefill($foto, 0, 0, imagecolorallocate($foto, 245, 245, 245));
+        imagecopy($foto, $corte, 0, 0, 0, 0, imagesx($corte), imagesy($corte));
+        for ($i = 0; $i < 40; $i++) {
+            imagefilter($foto, IMG_FILTER_GAUSSIAN_BLUR);
+        }
+        imagepng($foto, $ruta);
+
+        try {
+            $this->expectException(FotoNoValida::class);
+            $this->expectExceptionMessage('desenfocada');
+            (new AnalizadorTallo)->analizar($ruta);
+        } finally {
+            unlink($ruta);
+        }
+    }
+
+    private function saltarSinPython(): void
+    {
+        if (! Process::run([config('escala.python'), '-c', 'import cv2'])->successful()) {
+            $this->markTestSkipped('Python con OpenCV no está instalado (ver python/requirements.txt).');
+        }
+    }
+
+    /**
+     * Corte longitudinal de 300x900 px color crema, centrado en un PNG de 500x1100 transparente,
+     * con fibras más claras (no son daño) y opcionalmente una lesión café oscura con halo rojizo.
+     */
+    private function corteTransparente(bool $conLesion): string
+    {
+        $img = imagecreatetruecolor(500, 1100);
+        imagesavealpha($img, true);
+        imagealphablending($img, false);
+        imagefill($img, 0, 0, imagecolorallocatealpha($img, 0, 0, 0, 127));
+        imagealphablending($img, true);
+
+        imagefilledrectangle($img, 100, 100, 399, 999, imagecolorallocate($img, 225, 210, 170));
+        $fibra = imagecolorallocate($img, 235, 222, 185);
+        for ($x = 115; $x < 400; $x += 25) {
+            imagefilledrectangle($img, $x, 100, $x + 3, 999, $fibra);
+        }
+
+        if ($conLesion) {
+            imagefilledellipse($img, 250, 550, 120, 160, imagecolorallocate($img, 190, 90, 60));
+            imagefilledellipse($img, 250, 550, 80, 120, imagecolorallocate($img, 90, 40, 30));
+        }
+
+        $ruta = tempnam(sys_get_temp_dir(), 'corte').'.png';
+        imagepng($img, $ruta);
+
+        return $ruta;
     }
 }
