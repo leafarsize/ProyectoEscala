@@ -24,9 +24,9 @@ class RolesYAccesoTest extends TestCase
             'laboratorista en /jefe/usuarios' => ['/jefe/usuarios', Rol::Laboratorista, false],
             'productor en /jefe/usuarios' => ['/jefe/usuarios', Rol::Productor, false],
 
-            'jefe en /laboratorio/escaneos' => ['/laboratorio/escaneos', Rol::JefeLaboratorio, true],
-            'laboratorista en /laboratorio/escaneos' => ['/laboratorio/escaneos', Rol::Laboratorista, true],
-            'productor en /laboratorio/escaneos' => ['/laboratorio/escaneos', Rol::Productor, false],
+            'jefe en /laboratorio/tratamientos' => ['/laboratorio/tratamientos', Rol::JefeLaboratorio, true],
+            'laboratorista en /laboratorio/tratamientos' => ['/laboratorio/tratamientos', Rol::Laboratorista, true],
+            'productor en /laboratorio/tratamientos' => ['/laboratorio/tratamientos', Rol::Productor, false],
 
             'jefe en /productor/resultados' => ['/productor/resultados', Rol::JefeLaboratorio, false],
             'laboratorista en /productor/resultados' => ['/productor/resultados', Rol::Laboratorista, false],
@@ -50,7 +50,7 @@ class RolesYAccesoTest extends TestCase
 
     public function test_visitantes_van_al_login(): void
     {
-        foreach (['/jefe/usuarios', '/laboratorio/escaneos', '/productor/resultados'] as $ruta) {
+        foreach (['/jefe/usuarios', '/laboratorio/tratamientos', '/productor/resultados'] as $ruta) {
             $this->get($ruta)->assertRedirect(route('login'));
         }
     }

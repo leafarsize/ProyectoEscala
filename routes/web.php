@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\EscaneoController;
+use App\Http\Controllers\TratamientoController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -22,7 +23,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Laboratorista y Jefe de laboratorio
     Route::middleware('rol:laboratorista,jefe_laboratorio')->prefix('laboratorio')->name('laboratorio.')->group(function () {
-        Route::inertia('escaneos', 'laboratorio/escaneos')->name('escaneos');
+        // Historial por tratamiento: cada tratamiento agrupa sus escaneos (el primero lo inicia)
+        Route::get('tratamientos', [TratamientoController::class, 'index'])->name('tratamientos.index');
+        Route::get('tratamientos/{tratamiento}', [TratamientoController::class, 'show'])->name('tratamientos.show');
+        Route::get('escaneos/{escaneo}/imagen/{tipo}', [EscaneoController::class, 'imagen'])
+            ->whereIn('tipo', ['original', 'resaltada'])
+            ->name('escaneos.imagen');
     });
 
     // Solo Productor
