@@ -88,8 +88,13 @@ class TratamientoController extends Controller
         ];
     }
 
-    private function ultimoNivel(): mixed
+    /**
+     * Nivel más alto de la escala (config/escala.php), para mostrar "Nivel N de 5".
+     */
+    private function ultimoNivel(): int
     {
-        return max(array_column(Config::array('escala.niveles'), 'nivel'));
+        $niveles = array_map(intval(...), array_column(Config::array('escala.niveles'), 'nivel'));
+
+        return $niveles === [] ? 0 : max($niveles);
     }
 }
