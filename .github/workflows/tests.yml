@@ -31,6 +31,17 @@ jobs:
         with:
           node-version: '22'
 
+      # Para que las pruebas que ejecutan python/analizar_tallo.py no se salten
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv python/.venv
+          python/.venv/bin/pip install -r python/requirements.txt
+
       - name: Setup Application
         run: composer setup
 
