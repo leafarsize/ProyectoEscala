@@ -11,12 +11,12 @@ export function AppContent({ variant = 'sidebar', children, ...props }: Props) {
         return <SidebarInset {...props}>{children}</SidebarInset>;
     }
 
+    // Panel blanco centrado sobre el fondo gris, como las páginas de Nexo
     return (
-        <main
-            className="mx-auto flex h-full w-full max-w-7xl flex-1 flex-col gap-4 rounded-xl"
-            {...props}
-        >
-            {children}
+        <main className="flex-1 px-3 py-6 sm:px-6 md:py-8" {...props}>
+            <div className="mx-auto flex w-full max-w-6xl flex-col rounded-xl border bg-card shadow-sm">
+                {children}
+            </div>
         </main>
     );
 }

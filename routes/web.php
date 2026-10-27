@@ -4,7 +4,9 @@ use App\Http\Controllers\EscaneoController;
 use App\Http\Controllers\TratamientoController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+// Sin página de bienvenida: la raíz lleva al login (con sesión, Fortify redirige al panel)
+// Solo GET: Route::redirect registra todos los métodos y Wayfinder genera tipos inválidos
+Route::get('/', fn () => to_route('login'))->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
@@ -26,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Historial por tratamiento: cada tratamiento agrupa sus escaneos (el primero lo inicia)
         Route::get('tratamientos', [TratamientoController::class, 'index'])->name('tratamientos.index');
         Route::get('tratamientos/{tratamiento}', [TratamientoController::class, 'show'])->name('tratamientos.show');
+        Route::delete('tratamientos/{tratamiento}', [TratamientoController::class, 'destroy'])->name('tratamientos.destroy');
         Route::get('escaneos/{escaneo}/imagen/{tipo}', [EscaneoController::class, 'imagen'])
             ->whereIn('tipo', ['original', 'resaltada'])
             ->name('escaneos.imagen');

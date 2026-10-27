@@ -6,7 +6,7 @@ export default function Usuarios() {
     return (
         <>
             <Head title="Usuarios" />
-            <div className="flex h-full flex-1 flex-col gap-4 p-4">
+            <div className="flex h-full flex-1 flex-col gap-4 p-5 md:p-8">
                 <Heading
                     title="Usuarios"
                     description="Alta y desactivación de laboratoristas y productores."

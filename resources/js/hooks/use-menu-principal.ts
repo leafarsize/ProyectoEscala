@@ -20,7 +20,7 @@ type NavItemConRoles = NavItem & {
 
 // Ocultar una opción es solo comodidad: la seguridad real está en el middleware role: de cada ruta
 const items: NavItemConRoles[] = [
-    { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
+    { title: 'Inicio', href: dashboard(), icon: LayoutGrid },
     { title: 'Escanear tallo', href: escanear(), icon: ScanLine },
     {
         title: 'Tratamientos',
