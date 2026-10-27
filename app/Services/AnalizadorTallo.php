@@ -7,17 +7,17 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 
-class AnalizadorHoja
+class AnalizadorTallo
 {
     /**
-     * Código de salida de analizar_hoja.py cuando la foto no sirve (sin hoja, oscura, etc.).
+     * Código de salida de analizar_tallo.py cuando la foto no sirve (sin tallo, oscura, etc.).
      */
     private const FOTO_NO_VALIDA = 2;
 
     /**
-     * Analiza la imagen de una hoja de caña con python/analizar_hoja.py.
+     * Analiza la imagen de un tallo de caña con python/analizar_tallo.py.
      *
-     * @return array{porcentaje: float, nivel: int, etiqueta: string, area_hoja_px: int, area_lesion_px: int, imagen_resaltada: string}
+     * @return array{porcentaje: float, nivel: int, etiqueta: string, area_tallo_px: int, area_lesion_px: int, imagen_resaltada: string}
      *
      * @throws FotoNoValida si el usuario debe tomar la foto de nuevo
      * @throws RuntimeException si el análisis falla por otra razón
@@ -34,7 +34,7 @@ class AnalizadorHoja
         }
 
         if (! $proceso->successful() || ! isset($salida['porcentaje'])) {
-            Log::error('Falló el análisis de la hoja', [
+            Log::error('Falló el análisis del tallo', [
                 'codigo' => $proceso->exitCode(),
                 'error' => $proceso->errorOutput(),
             ]);
@@ -47,7 +47,7 @@ class AnalizadorHoja
         return [
             'porcentaje' => $porcentaje,
             ...$this->clasificar($porcentaje),
-            'area_hoja_px' => (int) $salida['area_hoja_px'],
+            'area_tallo_px' => (int) $salida['area_tallo_px'],
             'area_lesion_px' => (int) $salida['area_lesion_px'],
             'imagen_resaltada' => $salida['imagen_resaltada'],
         ];

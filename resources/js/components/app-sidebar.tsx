@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, ScanLine } from 'lucide-react';
+import { BookOpen, FolderGit2 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -13,22 +13,9 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useMenuPrincipal } from '@/hooks/use-menu-principal';
 import { dashboard } from '@/routes';
-import { create as escanear } from '@/routes/escaneo';
 import type { NavItem } from '@/types';
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Escanear hoja',
-        href: escanear(),
-        icon: ScanLine,
-    },
-];
 
 const footerNavItems: NavItem[] = [
     {
@@ -44,6 +31,8 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const menuPrincipal = useMenuPrincipal();
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -59,7 +48,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={menuPrincipal} />
             </SidebarContent>
 
             <SidebarFooter>

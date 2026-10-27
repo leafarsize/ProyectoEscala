@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Settings;
 
+use App\Enums\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,6 +20,13 @@ class ProfileUpdateTest extends TestCase
             ->get(route('profile.edit'));
 
         $response->assertOk();
+    }
+
+    public function test_settings_redirects_to_the_profile_page()
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/settings')
+            ->assertRedirect(route('profile.edit'));
     }
 
     public function test_profile_information_can_be_updated()
@@ -41,6 +49,25 @@ class ProfileUpdateTest extends TestCase
         $this->assertSame('Test User', $user->name);
         $this->assertSame('test@example.com', $user->email);
         $this->assertNull($user->email_verified_at);
+    }
+
+    public function test_un_usuario_no_puede_cambiarse_el_rol_ni_el_estado_desde_su_perfil()
+    {
+        $user = User::factory()->inactivo()->create();
+
+        $this
+            ->actingAs($user)
+            ->patch(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'rol' => Rol::JefeLaboratorio->value,
+                'activo' => true,
+            ]);
+
+        $user->refresh();
+
+        $this->assertSame(Rol::Laboratorista, $user->rol);
+        $this->assertFalse($user->activo);
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged()

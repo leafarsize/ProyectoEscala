@@ -1,17 +1,35 @@
-import { Head, useHttp } from '@inertiajs/react';
-import { Camera, ImageUp, RotateCcw, ScanLine, X } from 'lucide-react';
+import { Head, Link, router, useHttp } from '@inertiajs/react';
+import {
+    Camera,
+    FlaskConical,
+    ImageUp,
+    Plus,
+    RotateCcw,
+    ScanLine,
+    X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { ChangeEvent, DragEvent } from 'react';
+import type { ChangeEvent, DragEvent, ReactNode } from 'react';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { reducirImagen } from '@/lib/reducir-imagen';
 import { cn } from '@/lib/utils';
 import { analizar, create } from '@/routes/escaneo';
+import { show as verTratamiento } from '@/routes/laboratorio/tratamientos';
 
 type Nivel = {
     nivel: number;
@@ -23,24 +41,75 @@ type Resultado = {
     porcentaje: number;
     nivel: number;
     etiqueta: string;
-    area_hoja_px: number;
+    area_tallo_px: number;
     area_lesion_px: number;
     imagen_resaltada: string;
+    /** null cuando el análisis no se guarda (productor) */
+    tratamiento: { id: number; nombre: string; escaneos: number } | null;
 };
 
+type TratamientoOpcion = {
+    id: number;
+    nombre: string;
+    variedad: string;
+    lote: string;
+    escaneos: number;
+};
+
+type Productor = { id: number; name: string };
+
+type DatosEscaneo = {
+    imagen: File | null;
+    tratamiento_id: string;
+    nombre: string;
+    variedad: string;
+    lote: string;
+    productor_id: string;
+};
+
+type Modo = 'nuevo' | 'existente';
+
 const FORMATOS = 'image/jpeg,image/png,image/webp';
+const SIN_PRODUCTOR = 'ninguno';
 
 export default function Escanear({
     maxKb,
     niveles,
+    puedeGuardar,
+    tratamientos,
+    tratamientoInicial,
+    productores,
 }: {
     maxKb: number;
     niveles: Nivel[];
+    puedeGuardar: boolean;
+    tratamientos: TratamientoOpcion[];
+    tratamientoInicial: number | null;
+    productores: Productor[];
 }) {
-    const http = useHttp<{ imagen: File | null }, Resultado>({ imagen: null });
+    const http = useHttp<DatosEscaneo, Resultado>({
+        imagen: null,
+        tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
+        nombre: '',
+        variedad: '',
+        lote: '',
+        productor_id: '',
+    });
+    const [modo, setModo] = useState<Modo>(
+        tratamientoInicial ? 'existente' : 'nuevo',
+    );
     const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Resultado | null>(null);
     const [errorServidor, setErrorServidor] = useState<string | null>(null);
+
+    const cambiarModo = (nuevo: Modo) => {
+        setModo(nuevo);
+        http.clearErrors('tratamiento_id', 'nombre', 'variedad', 'lote');
+        // En un tratamiento nuevo no se envía tratamiento_id
+        if (nuevo === 'nuevo') {
+            http.setData('tratamiento_id', '');
+        }
+    };
 
     // Liberar la URL temporal de la vista previa al cambiar de foto
     useEffect(() => {
@@ -84,19 +153,59 @@ export default function Escanear({
         setResultado(null);
         setVistaPrevia(null);
         setErrorServidor(null);
-        http.reset();
-        http.clearErrors();
+        http.setData('imagen', null);
+        http.clearErrors('imagen');
     };
 
-    const analizarHoja = async () => {
+    /** Después de un resultado: otro escaneo del mismo tratamiento o empezar de cero. */
+    const nuevoEscaneo = (mismoTratamiento: boolean) => {
+        const tratamiento = resultado?.tratamiento;
+
+        setResultado(null);
+        setVistaPrevia(null);
+        setErrorServidor(null);
+        http.clearErrors();
+
+        if (mismoTratamiento && tratamiento) {
+            http.setData({
+                ...http.data,
+                imagen: null,
+                tratamiento_id: String(tratamiento.id),
+            });
+            setModo('existente');
+        } else {
+            http.setData({
+                imagen: null,
+                tratamiento_id: '',
+                nombre: '',
+                variedad: '',
+                lote: '',
+                productor_id: '',
+            });
+            setModo('nuevo');
+        }
+    };
+
+    const analizarTallo = async () => {
         setErrorServidor(null);
 
+        if (puedeGuardar && modo === 'existente' && !http.data.tratamiento_id) {
+            http.setError('tratamiento_id', 'Elige un tratamiento.');
+
+            return;
+        }
+
         try {
-            // Los errores de validación (422) quedan en http.errors.imagen
+            // Los errores de validación (422) quedan en http.errors
             const respuesta = await http.submit(analizar());
 
             if (respuesta) {
                 setResultado(respuesta);
+
+                if (respuesta.tratamiento) {
+                    // El tratamiento nuevo (o su conteo) aparece en la lista para el siguiente escaneo
+                    router.reload({ only: ['tratamientos'] });
+                }
             }
         } catch (error) {
             // Se conserva la foto para poder reintentar
@@ -117,12 +226,12 @@ export default function Escanear({
 
     return (
         <>
-            <Head title="Escanear hoja" />
+            <Head title="Escanear tallo" />
 
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-6 md:py-8">
                 <Heading
-                    title="Escanear hoja"
-                    description="Obtén el porcentaje de daño y el nivel de severidad de una hoja de caña."
+                    title="Escanear tallo"
+                    description="Obtén el porcentaje de daño y el nivel de severidad de un tallo de caña."
                 />
 
                 {resultado && vistaPrevia ? (
@@ -130,54 +239,282 @@ export default function Escanear({
                         resultado={resultado}
                         original={vistaPrevia}
                         niveles={niveles}
-                        onNuevo={quitarFoto}
+                        onNuevo={nuevoEscaneo}
                     />
                 ) : (
-                    <Card>
-                        <CardContent className="flex flex-col gap-4">
-                            {vistaPrevia ? (
-                                <VistaPrevia
-                                    src={vistaPrevia}
-                                    analizando={http.processing}
-                                    onQuitar={quitarFoto}
-                                />
-                            ) : (
-                                <ZonaFoto onFoto={elegirFoto} />
-                            )}
+                    <>
+                        {puedeGuardar && (
+                            <SeccionTratamiento
+                                modo={modo}
+                                onModo={cambiarModo}
+                                datos={http.data}
+                                onCambio={(campo, valor) => {
+                                    http.setData(campo, valor);
+                                    http.clearErrors(campo);
+                                }}
+                                errores={http.errors}
+                                tratamientos={tratamientos}
+                                productores={productores}
+                                deshabilitado={http.processing}
+                            />
+                        )}
+                        <Card>
+                            <CardContent className="flex flex-col gap-4">
+                                {vistaPrevia ? (
+                                    <VistaPrevia
+                                        src={vistaPrevia}
+                                        analizando={http.processing}
+                                        onQuitar={quitarFoto}
+                                    />
+                                ) : (
+                                    <ZonaFoto onFoto={elegirFoto} />
+                                )}
 
-                            <InputError message={http.errors.imagen} />
+                                <InputError message={http.errors.imagen} />
 
-                            {errorServidor && (
-                                <Alert variant="destructive">
-                                    <AlertDescription>
-                                        {errorServidor}
-                                    </AlertDescription>
-                                </Alert>
-                            )}
+                                {errorServidor && (
+                                    <Alert variant="destructive">
+                                        <AlertDescription>
+                                            {errorServidor}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
 
-                            {vistaPrevia && (
-                                <Button
-                                    size="lg"
-                                    disabled={http.processing}
-                                    onClick={analizarHoja}
-                                >
-                                    {http.processing ? (
-                                        <Spinner />
-                                    ) : (
-                                        <ScanLine />
-                                    )}
-                                    {http.processing
-                                        ? 'Analizando…'
-                                        : errorServidor
-                                          ? 'Reintentar'
-                                          : 'Analizar hoja'}
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
+                                {vistaPrevia && (
+                                    <Button
+                                        size="lg"
+                                        disabled={http.processing}
+                                        onClick={analizarTallo}
+                                    >
+                                        {http.processing ? (
+                                            <Spinner />
+                                        ) : (
+                                            <ScanLine />
+                                        )}
+                                        {http.processing
+                                            ? 'Analizando…'
+                                            : errorServidor
+                                              ? 'Reintentar'
+                                              : 'Analizar tallo'}
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </>
                 )}
             </div>
         </>
+    );
+}
+
+function SeccionTratamiento({
+    modo,
+    onModo,
+    datos,
+    onCambio,
+    errores,
+    tratamientos,
+    productores,
+    deshabilitado,
+}: {
+    modo: Modo;
+    onModo: (modo: Modo) => void;
+    datos: DatosEscaneo;
+    onCambio: (
+        campo: Exclude<keyof DatosEscaneo, 'imagen'>,
+        valor: string,
+    ) => void;
+    errores: Partial<Record<keyof DatosEscaneo, string>>;
+    tratamientos: TratamientoOpcion[];
+    productores: Productor[];
+    deshabilitado: boolean;
+}) {
+    return (
+        <Card>
+            <CardContent className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <FlaskConical className="size-4 text-muted-foreground" />
+                        <p className="font-medium">Tratamiento</p>
+                    </div>
+                    <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        size="sm"
+                        value={modo}
+                        disabled={deshabilitado}
+                        onValueChange={(valor) =>
+                            valor && onModo(valor as Modo)
+                        }
+                    >
+                        <ToggleGroupItem value="nuevo" className="px-3">
+                            Nuevo
+                        </ToggleGroupItem>
+                        <ToggleGroupItem
+                            value="existente"
+                            className="px-3"
+                            disabled={tratamientos.length === 0}
+                        >
+                            Existente
+                        </ToggleGroupItem>
+                    </ToggleGroup>
+                </div>
+
+                {modo === 'nuevo' ? (
+                    <>
+                        <p className="text-sm text-muted-foreground">
+                            Este escaneo inicia un tratamiento nuevo.
+                        </p>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Campo
+                                id="nombre"
+                                etiqueta="Nombre del tratamiento"
+                                error={errores.nombre}
+                                className="sm:col-span-2"
+                            >
+                                <Input
+                                    id="nombre"
+                                    value={datos.nombre}
+                                    maxLength={255}
+                                    disabled={deshabilitado}
+                                    placeholder="Ej. Bioformulación M. guilliermondii"
+                                    onChange={(e) =>
+                                        onCambio('nombre', e.target.value)
+                                    }
+                                />
+                            </Campo>
+                            <Campo
+                                id="variedad"
+                                etiqueta="Variedad de caña"
+                                error={errores.variedad}
+                            >
+                                <Input
+                                    id="variedad"
+                                    value={datos.variedad}
+                                    maxLength={100}
+                                    disabled={deshabilitado}
+                                    placeholder="Ej. CP 72-2086"
+                                    onChange={(e) =>
+                                        onCambio('variedad', e.target.value)
+                                    }
+                                />
+                            </Campo>
+                            <Campo
+                                id="lote"
+                                etiqueta="Lote o parcela"
+                                error={errores.lote}
+                            >
+                                <Input
+                                    id="lote"
+                                    value={datos.lote}
+                                    maxLength={100}
+                                    disabled={deshabilitado}
+                                    placeholder="Ej. Lote 3"
+                                    onChange={(e) =>
+                                        onCambio('lote', e.target.value)
+                                    }
+                                />
+                            </Campo>
+                            {productores.length > 0 && (
+                                <Campo
+                                    id="productor"
+                                    etiqueta="Productor (opcional)"
+                                    error={errores.productor_id}
+                                    className="sm:col-span-2"
+                                >
+                                    <Select
+                                        value={
+                                            datos.productor_id || SIN_PRODUCTOR
+                                        }
+                                        disabled={deshabilitado}
+                                        onValueChange={(valor) =>
+                                            onCambio(
+                                                'productor_id',
+                                                valor === SIN_PRODUCTOR
+                                                    ? ''
+                                                    : valor,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="productor"
+                                            className="w-full"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={SIN_PRODUCTOR}>
+                                                Sin productor
+                                            </SelectItem>
+                                            {productores.map((p) => (
+                                                <SelectItem
+                                                    key={p.id}
+                                                    value={String(p.id)}
+                                                >
+                                                    {p.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </Campo>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <Campo
+                        id="tratamiento"
+                        etiqueta="Agregar el escaneo al tratamiento"
+                        error={errores.tratamiento_id}
+                    >
+                        <Select
+                            value={datos.tratamiento_id || undefined}
+                            disabled={deshabilitado}
+                            onValueChange={(valor) =>
+                                onCambio('tratamiento_id', valor)
+                            }
+                        >
+                            <SelectTrigger id="tratamiento" className="w-full">
+                                <SelectValue placeholder="Elige un tratamiento abierto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {tratamientos.map((t) => (
+                                    <SelectItem key={t.id} value={String(t.id)}>
+                                        {t.nombre} · {t.variedad} · {t.lote} (
+                                        {t.escaneos}{' '}
+                                        {t.escaneos === 1
+                                            ? 'escaneo'
+                                            : 'escaneos'}
+                                        )
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Campo>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function Campo({
+    id,
+    etiqueta,
+    error,
+    className,
+    children,
+}: {
+    id: string;
+    etiqueta: string;
+    error?: string;
+    className?: string;
+    children: ReactNode;
+}) {
+    return (
+        <div className={cn('grid gap-2', className)}>
+            <Label htmlFor={id}>{etiqueta}</Label>
+            {children}
+            <InputError message={error} />
+        </div>
     );
 }
 
@@ -275,7 +612,7 @@ function VistaPrevia({
         <div className="relative overflow-hidden rounded-xl bg-muted">
             <img
                 src={src}
-                alt="Vista previa de la hoja"
+                alt="Vista previa del tallo"
                 className={cn(
                     'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
                     analizando && 'opacity-40',
@@ -285,7 +622,7 @@ function VistaPrevia({
             {analizando ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
                     <Spinner className="size-6" />
-                    Analizando hoja…
+                    Analizando tallo…
                 </div>
             ) : (
                 <Button
@@ -311,7 +648,7 @@ function VistaResultado({
     resultado: Resultado;
     original: string;
     niveles: Nivel[];
-    onNuevo: () => void;
+    onNuevo: (mismoTratamiento: boolean) => void;
 }) {
     const [vista, setVista] = useState<'lesiones' | 'original'>('lesiones');
     const ultimoNivel = niveles[niveles.length - 1]?.nivel ?? 5;
@@ -373,23 +710,63 @@ function VistaResultado({
                             }
                             alt={
                                 vista === 'lesiones'
-                                    ? 'Hoja con las lesiones resaltadas en rojo'
-                                    : 'Foto original de la hoja'
+                                    ? 'Tallo con las lesiones resaltadas en rojo'
+                                    : 'Foto original del tallo'
                             }
                             className="mx-auto max-h-[32rem] w-full object-contain"
                         />
                     </div>
                 </div>
 
-                <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={onNuevo}
-                    className="sm:self-center"
-                >
-                    <RotateCcw />
-                    Escanear otra hoja
-                </Button>
+                {resultado.tratamiento ? (
+                    <div className="flex flex-col gap-3">
+                        <p className="text-center text-sm text-muted-foreground">
+                            Guardado como{' '}
+                            <span className="font-medium text-foreground">
+                                {resultado.tratamiento.escaneos === 1
+                                    ? 'escaneo inicial'
+                                    : `escaneo ${resultado.tratamiento.escaneos}`}
+                            </span>{' '}
+                            del tratamiento{' '}
+                            <Link
+                                href={verTratamiento(resultado.tratamiento.id)}
+                                className="font-medium text-foreground underline underline-offset-4"
+                            >
+                                {resultado.tratamiento.nombre}
+                            </Link>
+                            .
+                        </p>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <Button size="lg" onClick={() => onNuevo(true)}>
+                                <Plus />
+                                Otro escaneo de este tratamiento
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                onClick={() => onNuevo(false)}
+                            >
+                                <RotateCcw />
+                                Nuevo tratamiento
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <p className="text-center text-xs text-muted-foreground">
+                            Análisis rápido: este resultado no se guarda.
+                        </p>
+                        <Button
+                            variant="outline"
+                            size="lg"
+                            onClick={() => onNuevo(false)}
+                            className="sm:self-center"
+                        >
+                            <RotateCcw />
+                            Escanear otro tallo
+                        </Button>
+                    </>
+                )}
             </CardContent>
         </Card>
     );
@@ -487,7 +864,7 @@ function EscalaSeveridad({
                     .filter((_, i) => i === 0 || i === niveles.length - 1)
                     .map((n) => `${n.nivel} = ${n.etiqueta}`)
                     .join('  ')}{' '}
-                 rangos provisionales
+                rangos provisionales
             </p>
         </div>
     );
@@ -496,7 +873,7 @@ function EscalaSeveridad({
 Escanear.layout = {
     breadcrumbs: [
         {
-            title: 'Escanear hoja',
+            title: 'Escanear tallo',
             href: create(),
         },
     ],

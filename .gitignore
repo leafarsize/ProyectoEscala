@@ -43,6 +43,8 @@ yarn-error.log
 /opencode.json
 /opencode.jsonc
 
-# Python (análisis de hojas)
+# Python (análisis de tallos)
 /python/.venv
 __pycache__/
+# Salidas de python/evaluacion/evaluar.py (contienen las fotos de Natalia)
+/python/evaluacion/resultados

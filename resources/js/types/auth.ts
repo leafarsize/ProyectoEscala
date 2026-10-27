@@ -1,15 +1,14 @@
+/** Valores de App\Enums\Rol */
+export type Rol = 'laboratorista' | 'productor' | 'jefe_laboratorio';
+
+/** Lo que comparte HandleInertiaRequests en auth.user */
 export type User = {
     id: number;
     name: string;
     email: string;
     avatar?: string;
-    email_verified_at: string | null;
-    /* @chisel-2fa */
-    two_factor_enabled?: boolean;
-    /* @end-chisel-2fa */
-    created_at: string;
-    updated_at: string;
-    [key: string]: unknown;
+    rol: Rol;
+    rol_etiqueta: string;
 };
 
 export type Auth = {

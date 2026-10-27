@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\Rol;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -19,6 +21,10 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
+ * @property Rol $rol
+ * @property bool $activo
+ * @property bool $debe_cambiar_password
+ * @property int|null $creado_por
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -26,7 +32,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Table('usuarios')]
+#[Fillable(['name', 'email', 'password', 'rol', 'activo'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -43,9 +50,20 @@ class User extends Authenticatable implements PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'rol' => Rol::class,
+            'activo' => 'boolean',
+            'debe_cambiar_password' => 'boolean',
             /* @chisel-2fa */
             'two_factor_confirmed_at' => 'datetime',
             /* @end-chisel-2fa */
         ];
+    }
+
+    /**
+     * ¿El usuario tiene alguno de estos roles?
+     */
+    public function tieneRol(Rol ...$roles): bool
+    {
+        return in_array($this->rol, $roles, true);
     }
 }
