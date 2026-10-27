@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
+use App\Services\HistorialEscaneos;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Gate;
@@ -66,10 +68,25 @@ class TratamientoController extends Controller
                 'productor' => $tratamiento->productor?->name,
                 'notas' => $tratamiento->notas,
                 'puede_agregar' => $request->user()?->can('agregarEscaneo', $tratamiento) ?? false,
+                'puede_eliminar' => $request->user()?->can('delete', $tratamiento) ?? false,
             ],
             'escaneos' => $escaneos,
             'ultimoNivel' => $this->ultimoNivel(),
         ]);
+    }
+
+    /**
+     * Elimina el tratamiento con todos sus escaneos e imágenes. No se puede deshacer.
+     */
+    public function destroy(Tratamiento $tratamiento, HistorialEscaneos $historial): RedirectResponse
+    {
+        Gate::authorize('delete', $tratamiento);
+
+        $historial->eliminarTratamiento($tratamiento);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Tratamiento eliminado.']);
+
+        return to_route('laboratorio.tratamientos.index');
     }
 
     /**

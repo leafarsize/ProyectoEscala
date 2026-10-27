@@ -6,6 +6,7 @@ use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -61,5 +62,27 @@ class HistorialEscaneos
 
             throw $e;
         }
+    }
+
+    /**
+     * Borra el tratamiento con todos sus escaneos y las imágenes de cada uno.
+     *
+     * Los escaneos no caen en cascada (tratamiento_id es nullOnDelete), así que se
+     * eliminan a mano; si no, quedarían escaneos huérfanos y fotos en disco.
+     */
+    public function eliminarTratamiento(Tratamiento $tratamiento): void
+    {
+        $rutas = $tratamiento->escaneos()
+            ->get(['imagen_original', 'imagen_resaltada'])
+            ->flatMap(fn (Escaneo $e) => [$e->imagen_original, $e->imagen_resaltada])
+            ->all();
+
+        DB::transaction(function () use ($tratamiento) {
+            $tratamiento->escaneos()->delete();
+            $tratamiento->delete();
+        });
+
+        // Las fotos se borran tras confirmar la BD, para no perderlas si la transacción falla
+        Storage::disk(self::DISCO)->delete($rutas);
     }
 }

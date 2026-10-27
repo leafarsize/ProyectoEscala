@@ -228,7 +228,7 @@ export default function Escanear({
         <>
             <Head title="Escanear tallo" />
 
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-6 md:py-8">
                 <Heading
                     title="Escanear tallo"
                     description="Obtén el porcentaje de daño y el nivel de severidad de un tallo de caña."

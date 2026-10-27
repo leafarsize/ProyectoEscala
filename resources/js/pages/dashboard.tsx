@@ -1,26 +1,46 @@
-import { Head } from '@inertiajs/react';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import { Head, Link } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
+import { Seccion } from '@/components/seccion';
+import { useMenuPrincipal } from '@/hooks/use-menu-principal';
+import { toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 
 export default function Dashboard() {
+    // Los mosaicos son el mismo menú del rol, sin el propio Dashboard
+    const servicios = useMenuPrincipal().filter(
+        (item) => toUrl(item.href) !== toUrl(dashboard()),
+    );
+
     return (
         <>
-            <Head title="Dashboard" />
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                    </div>
-                </div>
-                <div className="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
-                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
-                </div>
+            <Head title="Inicio" />
+            <div className="flex flex-col gap-8 p-5 md:p-10">
+                <h1 className="text-center text-2xl font-bold tracking-tight text-primary uppercase">
+                    Bienvenido(a)
+                </h1>
+
+                <Seccion titulo="Servicios">
+                    <ul className="grid gap-3 pt-2 sm:grid-cols-2">
+                        {servicios.map((item) => (
+                            <li key={item.title}>
+                                <Link
+                                    href={item.href}
+                                    className="group flex items-center gap-4 rounded-lg border bg-card px-4 py-3.5 transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                >
+                                    {item.icon && (
+                                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                            <item.icon className="size-5" />
+                                        </span>
+                                    )}
+                                    <span className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                        {item.title}
+                                    </span>
+                                    <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </Seccion>
             </div>
         </>
     );
@@ -29,7 +49,7 @@ export default function Dashboard() {
 Dashboard.layout = {
     breadcrumbs: [
         {
-            title: 'Dashboard',
+            title: 'Inicio',
             href: dashboard(),
         },
     ],

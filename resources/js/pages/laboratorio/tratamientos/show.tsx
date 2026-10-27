@@ -1,5 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, ScanLine } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ArrowRight, ScanLine, Trash2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -10,12 +10,24 @@ import {
 } from '@/components/escaneo-detalle';
 import type { EscaneoVista } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
+import { Seccion } from '@/components/seccion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { create } from '@/routes/escaneo';
-import { index } from '@/routes/laboratorio/tratamientos';
+import { destroy, index } from '@/routes/laboratorio/tratamientos';
 
 type Tratamiento = {
     id: number;
@@ -28,6 +40,7 @@ type Tratamiento = {
     productor: string | null;
     notas: string | null;
     puede_agregar: boolean;
+    puede_eliminar: boolean;
 };
 
 export default function DetalleTratamiento({
@@ -50,50 +63,58 @@ export default function DetalleTratamiento({
     return (
         <>
             <Head title={t.nombre} />
-            <div className="flex h-full flex-1 flex-col gap-6 p-4">
+            <div className="flex h-full flex-1 flex-col gap-6 p-5 md:p-8">
                 <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     asChild
-                    className="self-start"
+                    className="-mb-2 self-start"
                 >
-                    <Link href={index()}>
-                        <ArrowLeft />
-                        Tratamientos
+                    <Link href={index()} aria-label="Volver a tratamientos">
+                        <Undo2 className="size-5" />
                     </Link>
                 </Button>
 
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Heading title={t.nombre} />
-                            <Badge
-                                variant={
-                                    t.estado === 'abierto'
-                                        ? 'outline'
-                                        : 'secondary'
-                                }
-                                className="mb-6"
-                            >
-                                {t.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
-                            </Badge>
-                        </div>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Heading title={t.nombre} />
+                        <Badge
+                            className={cn(
+                                'rounded-full border-transparent',
+                                t.estado === 'abierto'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                            )}
+                        >
+                            {t.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
+                        </Badge>
                     </div>
 
-                    {t.puede_agregar && (
-                        <Button asChild>
-                            <Link
-                                href={create({ query: { tratamiento: t.id } })}
-                            >
-                                <ScanLine />
-                                Agregar escaneo
-                            </Link>
-                        </Button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {t.puede_agregar && (
+                            <Button asChild>
+                                <Link
+                                    href={create({
+                                        query: { tratamiento: t.id },
+                                    })}
+                                >
+                                    <ScanLine />
+                                    Agregar escaneo
+                                </Link>
+                            </Button>
+                        )}
+                        {t.puede_eliminar && (
+                            <BotonEliminar
+                                id={t.id}
+                                nombre={t.nombre}
+                                escaneos={escaneos.length}
+                            />
+                        )}
+                    </div>
                 </div>
 
-                <Card>
-                    <CardContent className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <Seccion titulo="Información del tratamiento">
+                    <div className="grid gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 text-sm shadow-sm sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
                         <Dato titulo="Variedad" valor={t.variedad} />
                         <Dato titulo="Lote" valor={t.lote} />
                         <Dato
@@ -143,14 +164,10 @@ export default function DetalleTratamiento({
                                 className="sm:col-span-2 lg:col-span-4"
                             />
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </Seccion>
 
-                <section className="flex flex-col gap-3">
-                    <h2 className="font-semibold">
-                        Escaneos ({escaneos.length})
-                    </h2>
-
+                <Seccion titulo={`Escaneos (${escaneos.length})`}>
                     {escaneos.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                             Este tratamiento todavía no tiene escaneos.
@@ -169,7 +186,7 @@ export default function DetalleTratamiento({
                             ))}
                         </ol>
                     )}
-                </section>
+                </Seccion>
             </div>
 
             <DetalleEscaneo
@@ -181,6 +198,62 @@ export default function DetalleTratamiento({
                 onCerrar={() => setAbierto(null)}
             />
         </>
+    );
+}
+
+function BotonEliminar({
+    id,
+    nombre,
+    escaneos,
+}: {
+    id: number;
+    nombre: string;
+    escaneos: number;
+}) {
+    const [abierto, setAbierto] = useState(false);
+    const [procesando, setProcesando] = useState(false);
+
+    const eliminar = () => {
+        router.delete(destroy(id).url, {
+            preserveScroll: true,
+            onStart: () => setProcesando(true),
+            onFinish: () => setProcesando(false),
+            onSuccess: () => setAbierto(false),
+        });
+    };
+
+    return (
+        <Dialog open={abierto} onOpenChange={setAbierto}>
+            <DialogTrigger asChild>
+                <Button variant="destructive">
+                    <Trash2 />
+                    Eliminar
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>¿Eliminar «{nombre}»?</DialogTitle>
+                    <DialogDescription>
+                        Se borrarán el tratamiento y sus {escaneos}{' '}
+                        {escaneos === 1 ? 'escaneo' : 'escaneos'} con sus
+                        imágenes. Esta acción no se puede deshacer.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Button variant="secondary">Cancelar</Button>
+                    </DialogClose>
+                    <Button
+                        variant="destructive"
+                        disabled={procesando}
+                        onClick={eliminar}
+                    >
+                        {procesando && <Spinner />}
+                        Eliminar tratamiento
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -199,8 +272,10 @@ function Dato({
 }) {
     return (
         <div className={className}>
-            <p className="text-xs text-muted-foreground">{titulo}</p>
-            <div className="font-medium">{valor}</div>
+            <p className="text-xs font-semibold text-tec-marino dark:text-muted-foreground">
+                {titulo}
+            </p>
+            <div className="text-slate-600 dark:text-foreground">{valor}</div>
         </div>
     );
 }

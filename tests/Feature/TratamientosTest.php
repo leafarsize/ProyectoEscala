@@ -366,4 +366,78 @@ class TratamientosTest extends TestCase
         $this->actingAs($dueno)->get("/laboratorio/escaneos/{$escaneo->id}/imagen/otra")->assertNotFound();
         $this->actingAs($dueno)->get(route('laboratorio.escaneos.imagen', [$escaneo, 'original']))->assertNotFound();
     }
+
+    // ---------- Eliminar ----------
+
+    public function test_el_dueno_elimina_su_tratamiento_con_escaneos_e_imagenes()
+    {
+        $laboratorista = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create();
+        $escaneo = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create();
+        Storage::disk('local')->put($escaneo->imagen_original, 'png');
+        Storage::disk('local')->put($escaneo->imagen_resaltada, 'jpg');
+        $this->darAcceso($tratamiento, User::factory()->create());
+
+        $this->actingAs($laboratorista)
+            ->delete(route('laboratorio.tratamientos.destroy', $tratamiento))
+            ->assertRedirect(route('laboratorio.tratamientos.index'));
+
+        $this->assertDatabaseMissing('tratamientos', ['id' => $tratamiento->id]);
+        $this->assertSame(0, Escaneo::count());
+        $this->assertDatabaseEmpty('accesos_tratamiento');
+        Storage::disk('local')->assertMissing($escaneo->imagen_original);
+        Storage::disk('local')->assertMissing($escaneo->imagen_resaltada);
+    }
+
+    public function test_el_jefe_puede_eliminar_cualquier_tratamiento()
+    {
+        $tratamiento = Tratamiento::factory()->create();
+
+        $this->actingAs(User::factory()->rol(Rol::JefeLaboratorio)->create())
+            ->delete(route('laboratorio.tratamientos.destroy', $tratamiento))
+            ->assertRedirect(route('laboratorio.tratamientos.index'));
+
+        $this->assertDatabaseMissing('tratamientos', ['id' => $tratamiento->id]);
+    }
+
+    public function test_un_laboratorista_no_elimina_un_tratamiento_ajeno_ni_con_acceso()
+    {
+        $invitado = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->create();
+        $this->darAcceso($tratamiento, $invitado);
+
+        $this->actingAs($invitado)
+            ->delete(route('laboratorio.tratamientos.destroy', $tratamiento))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('tratamientos', ['id' => $tratamiento->id]);
+    }
+
+    public function test_el_productor_no_puede_eliminar_tratamientos()
+    {
+        $tratamiento = Tratamiento::factory()->create();
+
+        $this->actingAs(User::factory()->rol(Rol::Productor)->create())
+            ->delete(route('laboratorio.tratamientos.destroy', $tratamiento))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('tratamientos', ['id' => $tratamiento->id]);
+    }
+
+    public function test_el_detalle_dice_si_se_puede_eliminar()
+    {
+        $laboratorista = User::factory()->create();
+        $propio = Tratamiento::factory()->for($laboratorista, 'usuario')->create();
+        $invitado = Tratamiento::factory()->create();
+        $this->darAcceso($invitado, $laboratorista);
+
+        $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.show', $propio))
+            ->assertInertia(fn (Assert $page) => $page->where('tratamiento.puede_eliminar', true));
+
+        // Con acceso vigente puede verlo, pero no eliminarlo
+        $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.show', $invitado))
+            ->assertInertia(fn (Assert $page) => $page->where('tratamiento.puede_eliminar', false));
+    }
 }

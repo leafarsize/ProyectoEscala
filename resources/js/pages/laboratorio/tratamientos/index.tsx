@@ -50,7 +50,7 @@ export default function Tratamientos({
     return (
         <>
             <Head title="Tratamientos" />
-            <div className="flex h-full flex-1 flex-col gap-6 p-4">
+            <div className="flex h-full flex-1 flex-col gap-6 p-5 md:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
                         title="Tratamientos"

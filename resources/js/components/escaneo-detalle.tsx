@@ -38,15 +38,18 @@ export function NivelBadge({
     nivel: number;
     ultimoNivel: number;
 }) {
-    const variante =
+    // Pastillas pastel como el "Código de colores" de Nexo: verde bajo, ámbar medio, rojo alto
+    const color =
         nivel >= ultimoNivel - 1
-            ? 'destructive'
+            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
             : nivel <= 1
-              ? 'secondary'
-              : 'outline';
+              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
 
     return (
-        <Badge variant={variante} className="tabular-nums">
+        <Badge
+            className={`rounded-full border-transparent tabular-nums ${color}`}
+        >
             Nivel {nivel} de {ultimoNivel}
         </Badge>
     );

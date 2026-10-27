@@ -30,7 +30,7 @@ class PropsCompartidasTest extends TestCase
 
     public function test_los_visitantes_reciben_usuario_nulo(): void
     {
-        $this->get(route('home'))
+        $this->get(route('login'))
             ->assertInertia(fn (Assert $page) => $page->where('auth.user', null));
     }
 }
