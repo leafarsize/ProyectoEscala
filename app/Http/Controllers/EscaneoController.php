@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Rol;
 use App\Exceptions\FotoNoValida;
 use App\Http\Requests\AnalizarTalloRequest;
 use App\Models\Escaneo;
@@ -57,9 +56,6 @@ class EscaneoController extends Controller
             'puedeGuardar' => $puedeGuardar,
             'tratamientos' => $tratamientos,
             'tratamientoInicial' => $tratamientos->contains('id', $inicial) ? $inicial : null,
-            'productores' => $puedeGuardar
-                ? User::where('rol', Rol::Productor)->where('activo', true)->orderBy('name')->get(['id', 'name'])
-                : [],
         ]);
     }
 
@@ -107,13 +103,15 @@ class EscaneoController extends Controller
         // El tratamiento nuevo solo se crea si el análisis salió bien
         [$escaneo, $tratamiento] = DB::transaction(function () use ($request, $usuario, $foto, $resultado, $historial, $tratamiento) {
             $tratamiento ??= Tratamiento::create([
-                ...$request->safe()->only(['nombre', 'variedad', 'lote', 'productor_id']),
+                ...$request->safe()->only(['nombre', 'productor_id']),
                 'usuario_id' => $usuario->id,
                 'fecha_inicio' => today(),
                 'estado' => Tratamiento::ABIERTO,
             ]);
 
-            return [$historial->guardar($foto, $resultado, $usuario, $tratamiento), $tratamiento];
+            $numeroCana = (string) $request->validated('numero_cana');
+
+            return [$historial->guardar($foto, $resultado, $usuario, $tratamiento, $numeroCana), $tratamiento];
         });
 
         return response()->json([

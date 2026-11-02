@@ -1,17 +1,19 @@
-import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+} from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 /** Escaneo tal como lo envía Escaneo::paraVista() */
 export type EscaneoVista = {
     id: number;
+    /** null en los escaneos anteriores a que se pidiera el número de caña */
+    numero_cana: string | null;
     porcentaje: number;
     nivel: number;
     etiqueta: string;
@@ -21,14 +23,14 @@ export type EscaneoVista = {
     imagen_resaltada: string;
 };
 
-export const formatoFecha = new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+export const formatoFecha = new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
 });
 
-export const formatoDia = new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
+export const formatoDia = new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeZone: "UTC",
 });
 
 export function NivelBadge({
@@ -41,10 +43,10 @@ export function NivelBadge({
     // Pastillas pastel como el "Código de colores" de Nexo: verde bajo, ámbar medio, rojo alto
     const color =
         nivel >= ultimoNivel - 1
-            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+            ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
             : nivel <= 1
-              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
 
     return (
         <Badge
@@ -55,9 +57,6 @@ export function NivelBadge({
     );
 }
 
-/**
- * Ventana con la foto del escaneo en grande y el cambio entre lesiones y original.
- */
 export function DetalleEscaneo({
     escaneo,
     titulo,
@@ -69,7 +68,7 @@ export function DetalleEscaneo({
     ultimoNivel: number;
     onCerrar: () => void;
 }) {
-    const [vista, setVista] = useState<'lesiones' | 'original'>('lesiones');
+    const [vista, setVista] = useState<"lesiones" | "original">("lesiones");
 
     return (
         <Dialog
@@ -77,7 +76,7 @@ export function DetalleEscaneo({
             onOpenChange={(abierto) => {
                 if (!abierto) {
                     onCerrar();
-                    setVista('lesiones');
+                    setVista("lesiones");
                 }
             }}
         >
@@ -86,7 +85,7 @@ export function DetalleEscaneo({
                     <DialogHeader>
                         <DialogTitle className="flex flex-wrap items-center gap-2">
                             {titulo && <span>{titulo} ·</span>}
-                            {escaneo.porcentaje.toFixed(1)} % de daño ·{' '}
+                            {escaneo.porcentaje.toFixed(1)} % de daño ·{" "}
                             {escaneo.etiqueta}
                             <NivelBadge
                                 nivel={escaneo.nivel}
@@ -94,16 +93,21 @@ export function DetalleEscaneo({
                             />
                         </DialogTitle>
                         <DialogDescription>
-                            {formatoFecha.format(new Date(escaneo.fecha))} ·{' '}
-                            {escaneo.usuario}
+                            {[
+                                escaneo.numero_cana,
+                                formatoFecha.format(new Date(escaneo.fecha)),
+                                escaneo.usuario,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">
-                            {vista === 'lesiones'
-                                ? 'Lesiones detectadas en rojo'
-                                : 'Foto original'}
+                            {vista === "lesiones"
+                                ? "Lesiones detectadas en rojo"
+                                : "Foto original"}
                         </p>
                         <ToggleGroup
                             type="single"
@@ -126,14 +130,14 @@ export function DetalleEscaneo({
                     <div className="overflow-hidden rounded-xl bg-muted">
                         <img
                             src={
-                                vista === 'lesiones'
+                                vista === "lesiones"
                                     ? escaneo.imagen_resaltada
                                     : escaneo.imagen_original
                             }
                             alt={
-                                vista === 'lesiones'
-                                    ? 'Tallo con las lesiones resaltadas en rojo'
-                                    : 'Foto original del tallo'
+                                vista === "lesiones"
+                                    ? "Tallo con las lesiones resaltadas en rojo"
+                                    : "Foto original del tallo"
                             }
                             className="mx-auto max-h-[60vh] w-full object-contain"
                         />

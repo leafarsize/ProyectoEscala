@@ -22,8 +22,8 @@ use Illuminate\Support\Carbon;
  * @property int $usuario_id
  * @property int|null $productor_id
  * @property string $nombre
- * @property string $variedad
- * @property string $lote
+ * @property string|null $variedad
+ * @property string|null $lote
  * @property Carbon $fecha_inicio
  * @property string|null $condiciones
  * @property string|null $notas

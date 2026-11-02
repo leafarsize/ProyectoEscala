@@ -21,7 +21,7 @@ class EscaneoTest extends TestCase
     /**
      * Datos de un tratamiento nuevo (los laboratoristas guardan cada escaneo en uno).
      */
-    private const TRATAMIENTO = ['nombre' => 'Ensayo Fusarium', 'variedad' => 'CP 72-2086', 'lote' => 'Lote 3'];
+    private const TRATAMIENTO = ['nombre' => 'Ensayo Fusarium', 'numero_cana' => 'Caña 5'];
 
     public function test_visitantes_van_al_login()
     {

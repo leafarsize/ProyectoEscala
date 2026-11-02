@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\EscaneoController;
 use App\Http\Controllers\TratamientoController;
+use App\Http\Controllers\UsuariosController;
 use Illuminate\Support\Facades\Route;
 
 // Sin página de bienvenida: la raíz lleva al login (con sesión, Fortify redirige al panel)
@@ -20,7 +21,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Solo Jefe de laboratorio
     Route::middleware('rol:jefe_laboratorio')->prefix('jefe')->name('jefe.')->group(function () {
-        Route::inertia('usuarios', 'jefe/usuarios')->name('usuarios');
+        Route::get('usuarios', [UsuariosController::class, 'index'])->name('usuarios.index');
+        Route::get('usuarios/nuevo', [UsuariosController::class, 'create'])->name('usuarios.create');
+        Route::post('usuarios', [UsuariosController::class, 'store'])->name('usuarios.store');
+        Route::put('usuarios/{usuario}', [UsuariosController::class, 'update'])
+            ->whereNumber('usuario')->name('usuarios.update');
+        Route::delete('usuarios/{usuario}', [UsuariosController::class, 'destroy'])
+            ->whereNumber('usuario')->name('usuarios.destroy');
     });
 
     // Laboratorista y Jefe de laboratorio

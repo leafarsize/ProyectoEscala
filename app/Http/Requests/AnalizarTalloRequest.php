@@ -35,8 +35,8 @@ class AnalizarTalloRequest extends FormRequest
             'tratamiento_id' => ['nullable', 'integer', 'exists:tratamientos,id'],
             // …o el primero de un tratamiento nuevo
             'nombre' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:255'],
-            'variedad' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:100'],
-            'lote' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:100'],
+            // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
+            'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [
                 'nullable', 'integer',
                 Rule::exists('usuarios', 'id')->where('rol', Rol::Productor->value)->where('activo', true),
@@ -85,8 +85,7 @@ class AnalizarTalloRequest extends FormRequest
             'imagen.max' => 'La imagen supera el tamaño máximo de 10 MB.',
             'tratamiento_id.exists' => 'El tratamiento no existe.',
             'nombre.required_without' => 'Escribe el nombre del tratamiento.',
-            'variedad.required_without' => 'Escribe la variedad de caña.',
-            'lote.required_without' => 'Escribe el lote o parcela.',
+            'numero_cana.required' => 'Escribe el número de caña.',
             'productor_id.exists' => 'Elige un productor válido.',
         ];
     }
