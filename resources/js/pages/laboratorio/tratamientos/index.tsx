@@ -1,28 +1,29 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link } from "@inertiajs/react";
 import {
     ArrowRight,
     ChevronLeft,
     ChevronRight,
     FlaskConical,
     Images,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
-import { formatoDia, NivelBadge } from '@/components/escaneo-detalle';
-import type { EscaneoVista } from '@/components/escaneo-detalle';
-import Heading from '@/components/heading';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { create } from '@/routes/escaneo';
-import { index, show } from '@/routes/laboratorio/tratamientos';
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { formatoDia, NivelBadge } from "@/components/escaneo-detalle";
+import type { EscaneoVista } from "@/components/escaneo-detalle";
+import Heading from "@/components/heading";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { create } from "@/routes/escaneo";
+import { index, show } from "@/routes/laboratorio/tratamientos";
 
 type TratamientoResumen = {
     id: number;
     nombre: string;
-    variedad: string;
-    lote: string;
+    /** null en los tratamientos creados sin estos datos */
+    variedad: string | null;
+    lote: string | null;
     fecha_inicio: string;
-    estado: 'abierto' | 'cerrado';
+    estado: "abierto" | "cerrado";
     responsable: string;
     escaneos: number;
     porcentaje_inicial: number | null;
@@ -136,9 +137,9 @@ function TarjetaTratamiento({
                     )}
                     <span className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-background/90 px-2 py-0.5 text-xs font-medium shadow-sm">
                         <Images className="size-3.5" />
-                        {t.escaneos} {t.escaneos === 1 ? 'escaneo' : 'escaneos'}
+                        {t.escaneos} {t.escaneos === 1 ? "escaneo" : "escaneos"}
                     </span>
-                    {t.estado === 'cerrado' && (
+                    {t.estado === "cerrado" && (
                         <Badge
                             variant="secondary"
                             className="absolute top-2 right-2"
@@ -151,8 +152,13 @@ function TarjetaTratamiento({
                 <CardContent className="flex flex-col gap-2 p-4">
                     <p className="leading-tight font-semibold">{t.nombre}</p>
                     <p className="text-xs text-muted-foreground">
-                        {t.variedad} · {t.lote} · desde{' '}
-                        {formatoDia.format(new Date(t.fecha_inicio))}
+                        {[
+                            t.variedad,
+                            t.lote,
+                            `desde ${formatoDia.format(new Date(t.fecha_inicio))}`,
+                        ]
+                            .filter(Boolean)
+                            .join(" · ")}
                     </p>
 
                     {t.ultimo && (
@@ -192,7 +198,7 @@ function Evolucion({
             <span className="text-lg font-semibold whitespace-nowrap tabular-nums">
                 {actual.toFixed(1)}
                 <span className="text-sm text-muted-foreground">
-                    {' '}
+                    {" "}
                     % de daño
                 </span>
             </span>
@@ -209,11 +215,11 @@ function Evolucion({
             <span
                 className={
                     cambio > 0
-                        ? 'text-xs text-destructive'
-                        : 'text-xs text-muted-foreground'
+                        ? "text-xs text-destructive"
+                        : "text-xs text-muted-foreground"
                 }
             >
-                ({cambio > 0 ? '+' : ''}
+                ({cambio > 0 ? "+" : ""}
                 {cambio.toFixed(1)})
             </span>
         </span>
@@ -224,8 +230,8 @@ function Paginacion({ pagina }: { pagina: Paginado<TratamientoResumen> }) {
     if (pagina.last_page <= 1) {
         return (
             <p className="text-sm text-muted-foreground">
-                {pagina.total}{' '}
-                {pagina.total === 1 ? 'tratamiento' : 'tratamientos'}
+                {pagina.total}{" "}
+                {pagina.total === 1 ? "tratamiento" : "tratamientos"}
             </p>
         );
     }
@@ -284,7 +290,7 @@ function BotonPagina({
 Tratamientos.layout = {
     breadcrumbs: [
         {
-            title: 'Tratamientos',
+            title: "Tratamientos",
             href: index(),
         },
     ],

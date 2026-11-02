@@ -1,19 +1,19 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowRight, ScanLine, Trash2, Undo2 } from 'lucide-react';
-import { useState } from 'react';
-import type { ReactNode } from 'react';
+import { Head, Link, router } from "@inertiajs/react";
+import { ArrowRight, ScanLine, Trash2, Undo2 } from "lucide-react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import {
     DetalleEscaneo,
     formatoDia,
     formatoFecha,
     NivelBadge,
-} from '@/components/escaneo-detalle';
-import type { EscaneoVista } from '@/components/escaneo-detalle';
-import Heading from '@/components/heading';
-import { Seccion } from '@/components/seccion';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@/components/escaneo-detalle";
+import type { EscaneoVista } from "@/components/escaneo-detalle";
+import Heading from "@/components/heading";
+import { Seccion } from "@/components/seccion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
     Dialog,
     DialogClose,
@@ -23,19 +23,20 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from '@/components/ui/dialog';
-import { Spinner } from '@/components/ui/spinner';
-import { cn } from '@/lib/utils';
-import { create } from '@/routes/escaneo';
-import { destroy, index } from '@/routes/laboratorio/tratamientos';
+} from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+import { create } from "@/routes/escaneo";
+import { destroy, index } from "@/routes/laboratorio/tratamientos";
 
 type Tratamiento = {
     id: number;
     nombre: string;
-    variedad: string;
-    lote: string;
+    /** null en los tratamientos creados sin estos datos */
+    variedad: string | null;
+    lote: string | null;
     fecha_inicio: string;
-    estado: 'abierto' | 'cerrado';
+    estado: "abierto" | "cerrado";
     responsable: string;
     productor: string | null;
     notas: string | null;
@@ -80,13 +81,13 @@ export default function DetalleTratamiento({
                         <Heading title={t.nombre} />
                         <Badge
                             className={cn(
-                                'rounded-full border-transparent',
-                                t.estado === 'abierto'
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                                "rounded-full border-transparent",
+                                t.estado === "abierto"
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
                             )}
                         >
-                            {t.estado === 'abierto' ? 'Abierto' : 'Cerrado'}
+                            {t.estado === "abierto" ? "Abierto" : "Cerrado"}
                         </Badge>
                     </div>
 
@@ -115,8 +116,10 @@ export default function DetalleTratamiento({
 
                 <Seccion titulo="Información del tratamiento">
                     <div className="grid gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 text-sm shadow-sm sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-                        <Dato titulo="Variedad" valor={t.variedad} />
-                        <Dato titulo="Lote" valor={t.lote} />
+                        {t.variedad && (
+                            <Dato titulo="Variedad" valor={t.variedad} />
+                        )}
+                        {t.lote && <Dato titulo="Lote" valor={t.lote} />}
                         <Dato
                             titulo="Inicio"
                             valor={formatoDia.format(new Date(t.fecha_inicio))}
@@ -134,7 +137,7 @@ export default function DetalleTratamiento({
                                     ) : (
                                         <span className="flex flex-wrap items-center gap-x-1.5 tabular-nums">
                                             <span className="whitespace-nowrap">
-                                                {inicial.porcentaje.toFixed(1)}{' '}
+                                                {inicial.porcentaje.toFixed(1)}{" "}
                                                 %
                                             </span>
                                             <ArrowRight className="size-3.5" />
@@ -143,13 +146,13 @@ export default function DetalleTratamiento({
                                             </span>
                                             <span
                                                 className={cn(
-                                                    'whitespace-nowrap',
+                                                    "whitespace-nowrap",
                                                     cambio > 0
-                                                        ? 'text-destructive'
-                                                        : 'text-muted-foreground',
+                                                        ? "text-destructive"
+                                                        : "text-muted-foreground",
                                                 )}
                                             >
-                                                ({cambio > 0 ? '+' : ''}
+                                                ({cambio > 0 ? "+" : ""}
                                                 {cambio.toFixed(1)} pts)
                                             </span>
                                         </span>
@@ -234,8 +237,8 @@ function BotonEliminar({
                 <DialogHeader>
                     <DialogTitle>¿Eliminar «{nombre}»?</DialogTitle>
                     <DialogDescription>
-                        Se borrarán el tratamiento y sus {escaneos}{' '}
-                        {escaneos === 1 ? 'escaneo' : 'escaneos'} con sus
+                        Se borrarán el tratamiento y sus {escaneos}{" "}
+                        {escaneos === 1 ? "escaneo" : "escaneos"} con sus
                         imágenes. Esta acción no se puede deshacer.
                     </DialogDescription>
                 </DialogHeader>
@@ -258,7 +261,7 @@ function BotonEliminar({
 }
 
 function nombreEscaneo(numero: number): string {
-    return numero === 1 ? 'Escaneo 1 (inicio)' : `Escaneo ${numero}`;
+    return numero === 1 ? "Escaneo 1 (inicio)" : `Escaneo ${numero}`;
 }
 
 function Dato({
@@ -315,7 +318,7 @@ function TarjetaEscaneo({
                     <span className="text-2xl font-semibold whitespace-nowrap tabular-nums">
                         {escaneo.porcentaje.toFixed(1)}
                         <span className="text-sm text-muted-foreground">
-                            {' '}
+                            {" "}
                             % de daño
                         </span>
                     </span>
@@ -326,7 +329,7 @@ function TarjetaEscaneo({
                 </div>
                 <p className="text-sm font-medium">{escaneo.etiqueta}</p>
                 <p className="text-xs text-muted-foreground">
-                    {formatoFecha.format(new Date(escaneo.fecha))} ·{' '}
+                    {formatoFecha.format(new Date(escaneo.fecha))} ·{" "}
                     {escaneo.usuario}
                 </p>
             </CardContent>
@@ -337,7 +340,7 @@ function TarjetaEscaneo({
 DetalleTratamiento.layout = {
     breadcrumbs: [
         {
-            title: 'Tratamientos',
+            title: "Tratamientos",
             href: index(),
         },
     ],

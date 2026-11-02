@@ -45,6 +45,7 @@ class TratamientosTest extends TestCase
     {
         return $this->actingAs($usuario)->postJson(route('escaneo.analizar'), [
             'imagen' => UploadedFile::fake()->image('tallo.png', 400, 900),
+            'numero_cana' => 'Caña 1',
             ...$datos,
         ]);
     }
@@ -68,7 +69,7 @@ class TratamientosTest extends TestCase
         $productor = User::factory()->rol(Rol::Productor)->create();
 
         $this->escanear($laboratorista, [
-            'nombre' => 'Ensayo Fusarium', 'variedad' => 'CP 72-2086', 'lote' => 'Lote 3', 'productor_id' => $productor->id,
+            'nombre' => 'Ensayo Fusarium', 'numero_cana' => 'Caña 5', 'productor_id' => $productor->id,
         ])
             ->assertOk()
             ->assertJsonPath('tratamiento.nombre', 'Ensayo Fusarium')
@@ -77,13 +78,12 @@ class TratamientosTest extends TestCase
         $tratamiento = Tratamiento::sole();
         $this->assertSame($laboratorista->id, $tratamiento->usuario_id);
         $this->assertSame($productor->id, $tratamiento->productor_id);
-        $this->assertSame('CP 72-2086', $tratamiento->variedad);
-        $this->assertSame('Lote 3', $tratamiento->lote);
         $this->assertTrue($tratamiento->estaAbierto());
         $this->assertTrue($tratamiento->fecha_inicio->isToday());
 
         $escaneo = Escaneo::sole();
         $this->assertSame($tratamiento->id, $escaneo->tratamiento_id);
+        $this->assertSame('Caña 5', $escaneo->numero_cana);
         $this->assertSame(21.47, $escaneo->porcentaje);
         $this->assertSame(3, $escaneo->nivel);
         Storage::disk('local')->assertExists($escaneo->imagen_original);
@@ -106,16 +106,25 @@ class TratamientosTest extends TestCase
         $this->assertSame(3, $tratamiento->escaneos()->count());
     }
 
-    public function test_sin_tratamiento_hay_que_dar_sus_datos()
+    public function test_sin_tratamiento_hay_que_dar_su_nombre()
     {
         $this->fingirAnalisis();
 
         $this->escanear(User::factory()->create())
-            ->assertJsonValidationErrors([
-                'nombre' => 'Escribe el nombre del tratamiento.',
-                'variedad' => 'Escribe la variedad de caña.',
-                'lote' => 'Escribe el lote o parcela.',
-            ]);
+            ->assertJsonValidationErrors(['nombre' => 'Escribe el nombre del tratamiento.']);
+
+        Process::assertNothingRan();
+        $this->assertSame(0, Escaneo::count());
+    }
+
+    public function test_el_numero_de_cana_se_pide_tambien_en_un_tratamiento_existente()
+    {
+        $this->fingirAnalisis();
+        $laboratorista = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create();
+
+        $this->escanear($laboratorista, ['tratamiento_id' => $tratamiento->id, 'numero_cana' => ''])
+            ->assertJsonValidationErrors(['numero_cana' => 'Escribe el número de caña.']);
 
         Process::assertNothingRan();
         $this->assertSame(0, Escaneo::count());
@@ -194,7 +203,7 @@ class TratamientosTest extends TestCase
             '*' => Process::result(output: json_encode(['error' => 'La foto está desenfocada.']), exitCode: 2),
         ]);
 
-        $this->escanear(User::factory()->create(), ['nombre' => 'E', 'variedad' => 'V', 'lote' => 'L'])
+        $this->escanear(User::factory()->create(), ['nombre' => 'E'])
             ->assertJsonValidationErrors(['imagen' => 'La foto está desenfocada.']);
 
         $this->assertSame(0, Tratamiento::count());
@@ -208,7 +217,6 @@ class TratamientosTest extends TestCase
         $propio = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Propio']);
         Tratamiento::factory()->cerrado()->for($laboratorista, 'usuario')->create();
         Tratamiento::factory()->create(); // ajeno
-        User::factory()->rol(Rol::Productor)->create(['name' => 'Don Productor']);
 
         $this->actingAs($laboratorista)
             ->get(route('escaneo.create', ['tratamiento' => $propio->id]))
@@ -216,8 +224,7 @@ class TratamientosTest extends TestCase
                 ->where('puedeGuardar', true)
                 ->has('tratamientos', 1)
                 ->where('tratamientos.0.nombre', 'Propio')
-                ->where('tratamientoInicial', $propio->id)
-                ->where('productores.0.name', 'Don Productor'));
+                ->where('tratamientoInicial', $propio->id));
     }
 
     // ---------- Historial por tratamiento ----------

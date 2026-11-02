@@ -90,7 +90,7 @@ class TratamientoController extends Controller
     }
 
     /**
-     * @return array{id: int, nombre: string, variedad: string, lote: string, fecha_inicio: string, estado: string, responsable: string}
+     * @return array{id: int, nombre: string, variedad: string|null, lote: string|null, fecha_inicio: string, estado: string, responsable: string}
      */
     private function datos(Tratamiento $t): array
     {

@@ -23,8 +23,9 @@ class HistorialEscaneos
      * Guarda la foto original, la imagen resaltada y el resultado del análisis en el tratamiento.
      *
      * @param  array{porcentaje: float, nivel: int, etiqueta: string, area_tallo_px: int, area_lesion_px: int, imagen_resaltada: string}  $resultado
+     * @param  string  $numeroCana  Identifica el tallo dentro del tratamiento (p. ej. "Caña 5")
      */
-    public function guardar(UploadedFile $foto, array $resultado, User $usuario, Tratamiento $tratamiento): Escaneo
+    public function guardar(UploadedFile $foto, array $resultado, User $usuario, Tratamiento $tratamiento, string $numeroCana): Escaneo
     {
         $resaltada = base64_decode(Str::after($resultado['imagen_resaltada'], ','), true);
         if ($resaltada === false) {
@@ -48,6 +49,7 @@ class HistorialEscaneos
             return Escaneo::create([
                 'usuario_id' => $usuario->id,
                 'tratamiento_id' => $tratamiento->id,
+                'numero_cana' => $numeroCana,
                 'imagen_original' => $rutaOriginal,
                 'imagen_resaltada' => $rutaResaltada,
                 'porcentaje' => $resultado['porcentaje'],
