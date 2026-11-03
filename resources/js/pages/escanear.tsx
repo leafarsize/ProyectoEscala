@@ -1,4 +1,4 @@
-import { Head, Link, router, useHttp } from "@inertiajs/react";
+import { Head, Link, router, useHttp } from '@inertiajs/react';
 import {
     Camera,
     FlaskConical,
@@ -6,30 +6,34 @@ import {
     Plus,
     RotateCcw,
     ScanLine,
+    Smartphone,
     X,
-} from "lucide-react";
-import { useEffect, useState } from "react";
-import type { ChangeEvent, DragEvent, ReactNode } from "react";
-import Heading from "@/components/heading";
-import InputError from "@/components/input-error";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, DragEvent, ReactNode } from 'react';
+import { toast } from 'sonner';
+import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { reducirImagen } from "@/lib/reducir-imagen";
-import { cn } from "@/lib/utils";
-import { analizar, create } from "@/routes/escaneo";
-import { show as verTratamiento } from "@/routes/laboratorio/tratamientos";
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { VisorCamara } from '@/components/visor-camara';
+import { reducirImagen } from '@/lib/reducir-imagen';
+import { reproducirSonidoExito, reproducirSonidoFallo } from '@/lib/sonidos';
+import { cn } from '@/lib/utils';
+import { analizar, create } from '@/routes/escaneo';
+import { show as verTratamiento } from '@/routes/laboratorio/tratamientos';
 
 type Nivel = {
     nivel: number;
@@ -65,9 +69,9 @@ type DatosEscaneo = {
     numero_cana: string;
 };
 
-type Modo = "nuevo" | "existente";
+type Modo = 'nuevo' | 'existente';
 
-const FORMATOS = "image/jpeg,image/png,image/webp";
+const FORMATOS = 'image/jpeg,image/png,image/webp';
 
 export default function Escanear({
     maxKb,
@@ -84,23 +88,44 @@ export default function Escanear({
 }) {
     const http = useHttp<DatosEscaneo, Resultado>({
         imagen: null,
-        tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : "",
-        nombre: "",
-        numero_cana: "",
+        tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
+        nombre: '',
+        numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
-        tratamientoInicial ? "existente" : "nuevo",
+        tratamientoInicial ? 'existente' : 'nuevo',
     );
     const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Resultado | null>(null);
     const [errorServidor, setErrorServidor] = useState<string | null>(null);
+    const [visorCamaraAbierto, setVisorCamaraAbierto] = useState(false);
+
+    // Escuchar aperturas solicitadas desde el menú móvil o parámetro de URL
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('abrir_camara') === '1') {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('abrir_camara');
+                window.history.replaceState({}, '', url.toString());
+                setVisorCamaraAbierto(true);
+            }
+
+            const alAbrirCamara = () => setVisorCamaraAbierto(true);
+            window.addEventListener('abrir-camara-visor', alAbrirCamara);
+
+            return () => {
+                window.removeEventListener('abrir-camara-visor', alAbrirCamara);
+            };
+        }
+    }, []);
 
     const cambiarModo = (nuevo: Modo) => {
         setModo(nuevo);
-        http.clearErrors("tratamiento_id", "nombre");
+        http.clearErrors('tratamiento_id', 'nombre');
         // En un tratamiento nuevo no se envía tratamiento_id
-        if (nuevo === "nuevo") {
-            http.setData("tratamiento_id", "");
+        if (nuevo === 'nuevo') {
+            http.setData('tratamiento_id', '');
         }
     };
 
@@ -118,36 +143,46 @@ export default function Escanear({
         setErrorServidor(null);
         http.clearErrors();
 
-        if (!original.type.startsWith("image/")) {
-            http.setError(
-                "imagen",
-                "Formato no válido. Usa una imagen JPG, PNG o WEBP.",
-            );
+        if (!original.type.startsWith('image/')) {
+            const mensaje =
+                'Formato no válido. Usa una imagen JPG, PNG o WEBP.';
+            http.setError('imagen', mensaje);
+            toast.error(mensaje);
+            reproducirSonidoFallo();
 
             return;
         }
 
-        const archivo = await reducirImagen(original);
+        try {
+            const archivo = await reducirImagen(original);
 
-        if (archivo.size > maxKb * 1024) {
-            http.setError(
-                "imagen",
-                "La imagen supera el tamaño máximo de 10 MB.",
-            );
+            if (archivo.size > maxKb * 1024) {
+                const mensaje = 'La imagen supera el tamaño máximo de 10 MB.';
+                http.setError('imagen', mensaje);
+                toast.error(mensaje);
+                reproducirSonidoFallo();
 
-            return;
+                return;
+            }
+
+            http.setData('imagen', archivo);
+            setVistaPrevia(URL.createObjectURL(archivo));
+            toast.success('Imagen cargada con éxito');
+            reproducirSonidoExito();
+        } catch {
+            const mensaje = 'No se pudo cargar la imagen seleccionada.';
+            http.setError('imagen', mensaje);
+            toast.error(mensaje);
+            reproducirSonidoFallo();
         }
-
-        http.setData("imagen", archivo);
-        setVistaPrevia(URL.createObjectURL(archivo));
     };
 
     const quitarFoto = () => {
         setResultado(null);
         setVistaPrevia(null);
         setErrorServidor(null);
-        http.setData("imagen", null);
-        http.clearErrors("imagen");
+        http.setData('imagen', null);
+        http.clearErrors('imagen');
     };
 
     /** Después de un resultado: otro escaneo del mismo tratamiento o empezar de cero. */
@@ -165,25 +200,25 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: String(tratamiento.id),
                 // El siguiente escaneo es otro tallo
-                numero_cana: "",
+                numero_cana: '',
             });
-            setModo("existente");
+            setModo('existente');
         } else {
             http.setData({
                 imagen: null,
-                tratamiento_id: "",
-                nombre: "",
-                numero_cana: "",
+                tratamiento_id: '',
+                nombre: '',
+                numero_cana: '',
             });
-            setModo("nuevo");
+            setModo('nuevo');
         }
     };
 
     const analizarTallo = async () => {
         setErrorServidor(null);
 
-        if (puedeGuardar && modo === "existente" && !http.data.tratamiento_id) {
-            http.setError("tratamiento_id", "Elige un tratamiento.");
+        if (puedeGuardar && modo === 'existente' && !http.data.tratamiento_id) {
+            http.setError('tratamiento_id', 'Elige un tratamiento.');
 
             return;
         }
@@ -197,10 +232,11 @@ export default function Escanear({
 
                 if (respuesta.tratamiento) {
                     // El tratamiento nuevo (o su conteo) aparece en la lista para el siguiente escaneo
-                    router.reload({ only: ["tratamientos"] });
+                    router.reload({ only: ['tratamientos'] });
                 }
             }
         } catch (error) {
+            reproducirSonidoFallo();
             // Se conserva la foto para poder reintentar
             const estado = (error as { response?: { status: number } }).response
                 ?.status;
@@ -209,10 +245,10 @@ export default function Escanear({
 
             setErrorServidor(
                 estado === 429
-                    ? "Demasiados análisis seguidos. Espera un minuto e intenta de nuevo."
+                    ? 'Demasiados análisis seguidos. Espera un minuto e intenta de nuevo.'
                     : sinConexion
-                      ? "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo."
-                      : "No se pudo analizar la imagen. Intenta de nuevo.",
+                      ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
+                      : 'No se pudo analizar la imagen. Intenta de nuevo.',
             );
         }
     };
@@ -259,7 +295,12 @@ export default function Escanear({
                                         onQuitar={quitarFoto}
                                     />
                                 ) : (
-                                    <ZonaFoto onFoto={elegirFoto} />
+                                    <ZonaFoto
+                                        onFoto={elegirFoto}
+                                        onAbrirCamara={() =>
+                                            setVisorCamaraAbierto(true)
+                                        }
+                                    />
                                 )}
 
                                 <InputError message={http.errors.imagen} />
@@ -284,10 +325,10 @@ export default function Escanear({
                                             <ScanLine />
                                         )}
                                         {http.processing
-                                            ? "Analizando…"
+                                            ? 'Analizando…'
                                             : errorServidor
-                                              ? "Reintentar"
-                                              : "Analizar tallo"}
+                                              ? 'Reintentar'
+                                              : 'Analizar tallo'}
                                     </Button>
                                 )}
                             </CardContent>
@@ -295,6 +336,16 @@ export default function Escanear({
                     </>
                 )}
             </div>
+
+            {visorCamaraAbierto && (
+                <VisorCamara
+                    onFoto={(archivo) => {
+                        setVisorCamaraAbierto(false);
+                        elegirFoto(archivo);
+                    }}
+                    onCerrar={() => setVisorCamaraAbierto(false)}
+                />
+            )}
         </>
     );
 }
@@ -312,7 +363,7 @@ function SeccionTratamiento({
     onModo: (modo: Modo) => void;
     datos: DatosEscaneo;
     onCambio: (
-        campo: Exclude<keyof DatosEscaneo, "imagen">,
+        campo: Exclude<keyof DatosEscaneo, 'imagen'>,
         valor: string,
     ) => void;
     errores: Partial<Record<keyof DatosEscaneo, string>>;
@@ -350,7 +401,7 @@ function SeccionTratamiento({
                     </ToggleGroup>
                 </div>
 
-                {modo === "nuevo" ? (
+                {modo === 'nuevo' ? (
                     <>
                         <p className="text-sm text-muted-foreground">
                             Este escaneo inicia un tratamiento nuevo.
@@ -365,9 +416,9 @@ function SeccionTratamiento({
                                 value={datos.nombre}
                                 maxLength={255}
                                 disabled={deshabilitado}
-                           
+
                                 onChange={(e) =>
-                                    onCambio("nombre", e.target.value)
+                                    onCambio('nombre', e.target.value)
                                 }
                             />
                         </Campo>
@@ -382,7 +433,7 @@ function SeccionTratamiento({
                             value={datos.tratamiento_id || undefined}
                             disabled={deshabilitado}
                             onValueChange={(valor) =>
-                                onCambio("tratamiento_id", valor)
+                                onCambio('tratamiento_id', valor)
                             }
                         >
                             <SelectTrigger id="tratamiento" className="w-full">
@@ -394,11 +445,11 @@ function SeccionTratamiento({
                                         {/* variedad y lote solo existen en los tratamientos antiguos */}
                                         {[t.nombre, t.variedad, t.lote]
                                             .filter(Boolean)
-                                            .join(" · ")}{" "}
-                                        ({t.escaneos}{" "}
+                                            .join(' · ')}{' '}
+                                        ({t.escaneos}{' '}
                                         {t.escaneos === 1
-                                            ? "escaneo"
-                                            : "escaneos"}
+                                            ? 'escaneo'
+                                            : 'escaneos'}
                                         )
                                     </SelectItem>
                                 ))}
@@ -419,7 +470,7 @@ function SeccionTratamiento({
                         maxLength={50}
                         disabled={deshabilitado}
                         onChange={(e) =>
-                            onCambio("numero_cana", e.target.value)
+                            onCambio('numero_cana', e.target.value)
                         }
                     />
                 </Campo>
@@ -442,7 +493,7 @@ function Campo({
     children: ReactNode;
 }) {
     return (
-        <div className={cn("grid gap-2", className)}>
+        <div className={cn('grid gap-2', className)}>
             <Label htmlFor={id}>{etiqueta}</Label>
             {children}
             <InputError message={error} />
@@ -450,12 +501,19 @@ function Campo({
     );
 }
 
-function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
+function ZonaFoto({
+    onFoto,
+    onAbrirCamara,
+}: {
+    onFoto: (archivo: File) => void;
+    onAbrirCamara: () => void;
+}) {
     const [arrastrando, setArrastrando] = useState(false);
+    const inputNativaDirectoRef = useRef<HTMLInputElement>(null);
 
     const alSeleccionar = (e: ChangeEvent<HTMLInputElement>) => {
         const archivo = e.target.files?.[0];
-        e.target.value = ""; // permite volver a elegir el mismo archivo
+        e.target.value = ''; // permite volver a elegir el mismo archivo
 
         if (archivo) {
             onFoto(archivo);
@@ -474,7 +532,48 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
     };
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
+            {/* Opciones de captura: Visor con marco guía o Cámara nativa */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <Button
+                    type="button"
+                    size="lg"
+                    onClick={onAbrirCamara}
+                    className="group h-16 w-full rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 active:scale-[0.98]"
+                >
+                    <Camera className="mr-2 size-5 transition-transform group-hover:scale-110" />
+                    <span>Visor con marco (10 × 15)</span>
+                </Button>
+
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => inputNativaDirectoRef.current?.click()}
+                    className="h-16 w-full rounded-2xl border-2 text-sm font-semibold transition-all hover:bg-muted active:scale-[0.98]"
+                >
+                    <Smartphone className="mr-2 size-5 text-primary" />
+                    <span>Cámara nativa del celular</span>
+                </Button>
+            </div>
+
+            {/* Input para cámara nativa del sistema */}
+            <input
+                ref={inputNativaDirectoRef}
+                type="file"
+                accept={FORMATOS}
+                capture="environment"
+                onChange={alSeleccionar}
+                className="sr-only"
+            />
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase">
+                <span className="h-px flex-1 bg-border" />
+                <span>o seleccionar desde galería</span>
+                <span className="h-px flex-1 bg-border" />
+            </div>
+
+            {/* Zona para elegir archivo o arrastrar */}
             <label
                 onDragOver={(e) => {
                     e.preventDefault();
@@ -483,21 +582,21 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
                 onDragLeave={() => setArrastrando(false)}
                 onDrop={alSoltar}
                 className={cn(
-                    "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 text-center transition-colors",
-                    "focus-within:ring-[3px] focus-within:ring-ring/50 hover:bg-muted/50",
+                    'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors',
+                    'focus-within:ring-[3px] focus-within:ring-ring/50 hover:bg-muted/50',
                     arrastrando
-                        ? "border-foreground bg-muted/50"
-                        : "border-muted-foreground/25",
+                        ? 'border-foreground bg-muted/50'
+                        : 'border-muted-foreground/25',
                 )}
             >
-                <span className="flex size-12 items-center justify-center rounded-full bg-muted">
+                <span className="flex size-10 items-center justify-center rounded-full bg-muted">
                     <ImageUp className="size-5 text-muted-foreground" />
                 </span>
-                <span className="flex flex-col gap-1">
-                    <span className="font-medium">
-                        Arrastra la foto aquí o haz clic para elegirla
+                <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium">
+                        Seleccionar foto existente
                     </span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                         JPG, PNG o WEBP
                     </span>
                 </span>
@@ -509,23 +608,8 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
                 />
             </label>
 
-            <Button variant="outline" size="lg" asChild>
-                <label className="cursor-pointer focus-within:ring-[3px] focus-within:ring-ring/50">
-                    <Camera />
-                    Tomar foto
-                    <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={alSeleccionar}
-                        className="sr-only"
-                    />
-                </label>
-            </Button>
-
             <p className="text-center text-xs text-muted-foreground">
-                Para mejores resultados: fondo blanco liso, a unos 30 cm, con
-                buena luz y sin sombras.
+                Recomendación: corte longitudinal de entrenudo de 10 × 15 cm a ~30 cm de distancia sobre fondo blanco liso.
             </p>
         </div>
     );
@@ -546,8 +630,8 @@ function VistaPrevia({
                 src={src}
                 alt="Vista previa del tallo"
                 className={cn(
-                    "mx-auto max-h-[26rem] w-full object-contain transition-opacity",
-                    analizando && "opacity-40",
+                    'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
+                    analizando && 'opacity-40',
                 )}
             />
 
@@ -582,7 +666,7 @@ function VistaResultado({
     niveles: Nivel[];
     onNuevo: (mismoTratamiento: boolean) => void;
 }) {
-    const [vista, setVista] = useState<"lesiones" | "original">("lesiones");
+    const [vista, setVista] = useState<'lesiones' | 'original'>('lesiones');
     const ultimoNivel = niveles[niveles.length - 1]?.nivel ?? 5;
 
     return (
@@ -611,9 +695,9 @@ function VistaResultado({
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">
-                            {vista === "lesiones"
-                                ? "Lesiones detectadas en rojo"
-                                : "Foto original"}
+                            {vista === 'lesiones'
+                                ? 'Lesiones detectadas en rojo'
+                                : 'Foto original'}
                         </p>
                         <ToggleGroup
                             type="single"
@@ -636,14 +720,14 @@ function VistaResultado({
                     <div className="overflow-hidden rounded-xl bg-muted">
                         <img
                             src={
-                                vista === "lesiones"
+                                vista === 'lesiones'
                                     ? resultado.imagen_resaltada
                                     : original
                             }
                             alt={
-                                vista === "lesiones"
-                                    ? "Tallo con las lesiones resaltadas en rojo"
-                                    : "Foto original del tallo"
+                                vista === 'lesiones'
+                                    ? 'Tallo con las lesiones resaltadas en rojo'
+                                    : 'Foto original del tallo'
                             }
                             className="mx-auto max-h-[32rem] w-full object-contain"
                         />
@@ -653,13 +737,13 @@ function VistaResultado({
                 {resultado.tratamiento ? (
                     <div className="flex flex-col gap-3">
                         <p className="text-center text-sm text-muted-foreground">
-                            Guardado como{" "}
+                            Guardado como{' '}
                             <span className="font-medium text-foreground">
                                 {resultado.tratamiento.escaneos === 1
-                                    ? "escaneo inicial"
+                                    ? 'escaneo inicial'
                                     : `escaneo ${resultado.tratamiento.escaneos}`}
-                            </span>{" "}
-                            del tratamiento{" "}
+                            </span>{' '}
+                            del tratamiento{' '}
                             <Link
                                 href={verTratamiento(resultado.tratamiento.id)}
                                 className="font-medium text-foreground underline underline-offset-4"
@@ -765,24 +849,24 @@ function EscalaSeveridad({
                             key={n.nivel}
                             title={`Nivel ${n.nivel}: ${n.etiqueta} (${rango})`}
                             aria-current={
-                                n.nivel === actual ? "true" : undefined
+                                n.nivel === actual ? 'true' : undefined
                             }
                             className="flex flex-1 flex-col gap-1.5"
                         >
                             <span
                                 className={cn(
-                                    "h-2 rounded-full",
+                                    'h-2 rounded-full',
                                     n.nivel <= actual
-                                        ? "bg-foreground"
-                                        : "bg-muted",
+                                        ? 'bg-foreground'
+                                        : 'bg-muted',
                                 )}
                             />
                             <span
                                 className={cn(
-                                    "text-center text-xs tabular-nums",
+                                    'text-center text-xs tabular-nums',
                                     n.nivel === actual
-                                        ? "font-semibold"
-                                        : "text-muted-foreground",
+                                        ? 'font-semibold'
+                                        : 'text-muted-foreground',
                                 )}
                             >
                                 {n.nivel}
@@ -795,7 +879,7 @@ function EscalaSeveridad({
                 {niveles
                     .filter((_, i) => i === 0 || i === niveles.length - 1)
                     .map((n) => `${n.nivel} = ${n.etiqueta}`)
-                    .join("  ")}{" "}
+                    .join('  ')}{' '}
                 rangos provisionales
             </p>
         </div>
@@ -805,7 +889,7 @@ function EscalaSeveridad({
 Escanear.layout = {
     breadcrumbs: [
         {
-            title: "Escanear tallo",
+            title: 'Escanear tallo',
             href: create(),
         },
     ],

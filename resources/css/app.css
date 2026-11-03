@@ -12,7 +12,7 @@
         'Figtree', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
         'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
-    /* Paleta de Escala: azul institucional del Tec + verde hoja como acento propio */
+    /* Paleta inspirada en Nexo / Centro de Cómputo: naranja como acción principal + verde acento */
     --color-tec-azul: #0d52a0;
     --color-tec-marino: #1b396a;
     --color-tec-verde: #15803d;
@@ -67,77 +67,77 @@
     --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Tema claro: azul TecNM como primario, fondo gris azulado y bordes slate (como Nexo) */
+/* Tema claro: blanco puro estilo Nexo con acentos naranja institucional */
 :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    --background: #ffffff;
+    --foreground: #09090b;
     --card: #ffffff;
-    --card-foreground: #0f172a;
+    --card-foreground: #09090b;
     --popover: #ffffff;
-    --popover-foreground: #0f172a;
-    --primary: #0d52a0;
+    --popover-foreground: #09090b;
+    --primary: #e8541e;
     --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #1b396a;
-    --muted: #f1f5f9;
-    --muted-foreground: #64748b;
-    --accent: #e8eff9;
-    --accent-foreground: #1b396a;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --accent: #fff7ed;
+    --accent-foreground: #c2410c;
     --destructive: oklch(0.577 0.245 27.325);
     --destructive-foreground: oklch(0.577 0.245 27.325);
-    --border: #e2e8f0;
-    --input: #e2e8f0;
-    --ring: #0d52a0;
-    --chart-1: #0d52a0;
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --ring: #e8541e;
+    --chart-1: #e8541e;
     --chart-2: #15803d;
     --chart-3: #109151;
     --chart-4: #eab308;
     --chart-5: #1b396a;
     --radius: 0.75rem;
     --sidebar: #ffffff;
-    --sidebar-foreground: #1b396a;
-    --sidebar-primary: #0d52a0;
+    --sidebar-foreground: #18181b;
+    --sidebar-primary: #e8541e;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #e8eff9;
-    --sidebar-accent-foreground: #0d52a0;
-    --sidebar-border: #e2e8f0;
-    --sidebar-ring: #0d52a0;
+    --sidebar-accent: #fff7ed;
+    --sidebar-accent-foreground: #e8541e;
+    --sidebar-border: #e4e4e7;
+    --sidebar-ring: #e8541e;
 }
 
-/* Tema oscuro: marino profundo con el azul aclarado para que contraste */
+/* Tema oscuro: neutro sin tonos azules */
 .dark {
-    --background: #0a1628;
-    --foreground: #f1f5f9;
-    --card: #0f1e36;
-    --card-foreground: #f1f5f9;
-    --popover: #0f1e36;
-    --popover-foreground: #f1f5f9;
-    --primary: #4a8fe0;
-    --primary-foreground: #0a1628;
-    --secondary: #1a2b47;
-    --secondary-foreground: #f1f5f9;
-    --muted: #1a2b47;
-    --muted-foreground: #94a3b8;
-    --accent: #1a2b47;
-    --accent-foreground: #f1f5f9;
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #121215;
+    --card-foreground: #fafafa;
+    --popover: #121215;
+    --popover-foreground: #fafafa;
+    --primary: #f97316;
+    --primary-foreground: #09090b;
+    --secondary: #18181b;
+    --secondary-foreground: #fafafa;
+    --muted: #18181b;
+    --muted-foreground: #a1a1aa;
+    --accent: #18181b;
+    --accent-foreground: #fb923c;
     --destructive: oklch(0.396 0.141 25.723);
     --destructive-foreground: oklch(0.637 0.237 25.331);
-    --border: #1e3352;
-    --input: #1e3352;
-    --ring: #4a8fe0;
-    --chart-1: #4a8fe0;
+    --border: #27272a;
+    --input: #27272a;
+    --ring: #f97316;
+    --chart-1: #f97316;
     --chart-2: #15803d;
     --chart-3: #22c55e;
     --chart-4: #eab308;
-    --chart-5: #94a3b8;
-    --sidebar: #0f1e36;
-    --sidebar-foreground: #f1f5f9;
-    --sidebar-primary: #4a8fe0;
-    --sidebar-primary-foreground: #0a1628;
-    --sidebar-accent: #1a2b47;
-    --sidebar-accent-foreground: #f1f5f9;
-    --sidebar-border: #1e3352;
-    --sidebar-ring: #4a8fe0;
+    --chart-5: #a1a1aa;
+    --sidebar: #121215;
+    --sidebar-foreground: #fafafa;
+    --sidebar-primary: #f97316;
+    --sidebar-primary-foreground: #09090b;
+    --sidebar-accent: #18181b;
+    --sidebar-accent-foreground: #fb923c;
+    --sidebar-border: #27272a;
+    --sidebar-ring: #f97316;
 }
 
 @layer base {

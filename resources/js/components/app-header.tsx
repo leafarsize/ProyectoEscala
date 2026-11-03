@@ -37,7 +37,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
 
     return (
         <>
-            <header className="sticky top-0 z-40 border-t-2 border-b border-t-tec-verde bg-card shadow-xs">
+            <header className="sticky top-0 z-40 border-t-2 border-b border-t-primary bg-card shadow-xs">
                 <div className="mx-auto flex h-16 items-center gap-2 px-4 md:max-w-7xl">
                     {/* Menú en celular */}
                     <div className="lg:hidden">
@@ -108,7 +108,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             >
                                 {item.title}
                                 {isCurrentUrl(item.href) && (
-                                    <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-tec-verde" />
+                                    <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary" />
                                 )}
                             </Link>
                         ))}
