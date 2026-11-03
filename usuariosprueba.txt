@@ -1,8 +1,0 @@
-
-   Nombre                    │ Correo electrónico        │ Rol (rol)                 │ Estado
-  ───────────────────────────┼───────────────────────────┼───────────────────────────┼──────────────────────────
-   Jefe de laboratorio       │ j
-          │ jefe_laboratorio          │ Activo
-   Laboratorista de prueba   │ laboratorista@escala.test │ laboratorista             │ Activo
-   Productor de prueba       │ productor@escala.test     │ productor                 │ Activo
-   Usuario desactivado       │ inactivo@escala.test      │ laboratorista             │ Inactivo (bloqueado)
