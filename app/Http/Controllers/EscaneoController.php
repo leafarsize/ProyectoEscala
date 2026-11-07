@@ -42,6 +42,7 @@ class EscaneoController extends Controller
                 ->map(fn (Tratamiento $t) => [
                     'id' => $t->id,
                     'nombre' => $t->nombre,
+                    'medicamento' => $t->medicamento,
                     'variedad' => $t->variedad,
                     'lote' => $t->lote,
                     'escaneos' => $t->escaneos_count,
@@ -103,7 +104,7 @@ class EscaneoController extends Controller
         // El tratamiento nuevo solo se crea si el análisis salió bien
         [$escaneo, $tratamiento] = DB::transaction(function () use ($request, $usuario, $foto, $resultado, $historial, $tratamiento) {
             $tratamiento ??= Tratamiento::create([
-                ...$request->safe()->only(['nombre', 'productor_id']),
+                ...$request->safe()->only(['nombre', 'medicamento', 'duracion', 'temperatura', 'productor_id']),
                 'usuario_id' => $usuario->id,
                 'fecha_inicio' => today(),
                 'estado' => Tratamiento::ABIERTO,

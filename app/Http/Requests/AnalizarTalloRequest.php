@@ -35,6 +35,9 @@ class AnalizarTalloRequest extends FormRequest
             'tratamiento_id' => ['nullable', 'integer', 'exists:tratamientos,id'],
             // …o el primero de un tratamiento nuevo
             'nombre' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:255'],
+            'medicamento' => ['nullable', 'string', 'max:150'],
+            'duracion' => ['nullable', 'string', 'max:50'],
+            'temperatura' => ['nullable', 'string', 'max:50'],
             // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
             'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [

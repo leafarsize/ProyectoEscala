@@ -34,6 +34,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('rol:laboratorista,jefe_laboratorio')->prefix('laboratorio')->name('laboratorio.')->group(function () {
         // Historial por tratamiento: cada tratamiento agrupa sus escaneos (el primero lo inicia)
         Route::get('tratamientos', [TratamientoController::class, 'index'])->name('tratamientos.index');
+        Route::get('tratamientos/exportar', [TratamientoController::class, 'exportar'])->name('tratamientos.exportar');
+        Route::get('tratamientos/{tratamiento}/exportar', [TratamientoController::class, 'exportarDetalle'])->name('tratamientos.exportar-detalle');
         Route::get('tratamientos/{tratamiento}', [TratamientoController::class, 'show'])->name('tratamientos.show');
         Route::delete('tratamientos/{tratamiento}', [TratamientoController::class, 'destroy'])->name('tratamientos.destroy');
         Route::get('escaneos/{escaneo}/imagen/{tipo}', [EscaneoController::class, 'imagen'])
