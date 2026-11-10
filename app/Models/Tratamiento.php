@@ -22,7 +22,7 @@ use Illuminate\Support\Carbon;
  * @property int $usuario_id
  * @property int|null $productor_id
  * @property string $nombre
- * @property string|null $medicamento
+ * @property string|null $levadura Levadura de biocontrol aplicada, o "Testigo" sin levadura
  * @property string|null $duracion
  * @property string|null $temperatura
  * @property string|null $variedad
@@ -39,7 +39,7 @@ use Illuminate\Support\Carbon;
  * @property-read int|null $escaneos_count
  */
 #[Table('tratamientos')]
-#[Fillable(['usuario_id', 'productor_id', 'nombre', 'medicamento', 'duracion', 'temperatura', 'variedad', 'lote', 'fecha_inicio', 'condiciones', 'notas', 'estado'])]
+#[Fillable(['usuario_id', 'productor_id', 'nombre', 'levadura', 'duracion', 'temperatura', 'variedad', 'lote', 'fecha_inicio', 'condiciones', 'notas', 'estado'])]
 class Tratamiento extends Model
 {
     /** @use HasFactory<TratamientoFactory> */

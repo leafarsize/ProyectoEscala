@@ -296,7 +296,7 @@ class TratamientosTest extends TestCase
         $productor = User::factory()->rol(Rol::Productor)->create(['name' => 'Don Productor']);
         $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create([
             'productor_id' => $productor->id,
-            'medicamento' => 'Mancozeb 80%',
+            'levadura' => 'Meyerozyma guilliermondii',
             'duracion' => '14 días',
             'temperatura' => '25 °C',
         ]);
@@ -310,7 +310,7 @@ class TratamientosTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('laboratorio/tratamientos/show')
                 ->where('tratamiento.id', $tratamiento->id)
-                ->where('tratamiento.medicamento', 'Mancozeb 80%')
+                ->where('tratamiento.levadura', 'Meyerozyma guilliermondii')
                 ->where('tratamiento.duracion', '14 días')
                 ->where('tratamiento.temperatura', '25 °C')
                 ->where('tratamiento.responsable', 'Ana')
@@ -514,5 +514,48 @@ class TratamientosTest extends TestCase
 
         $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
         $this->assertStringContainsString('reporte_ensayo-detalle_', $response->headers->get('content-disposition'));
+    }
+
+    // ---------- Condiciones de incubación: valores fijos ----------
+
+    public function test_la_pantalla_de_escaneo_ofrece_duracion_y_temperatura_fijas()
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('escaneo.create'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('condiciones.duraciones', config('escala.duraciones'))
+                ->where('condiciones.temperaturas', config('escala.temperaturas'))
+                // Protocolo de la tesis de Natalia: 14 días a 25 °C
+                ->where('condiciones.duracion', '14 días')
+                ->where('condiciones.temperatura', '25 °C'));
+    }
+
+    public function test_se_guardan_la_levadura_duracion_y_temperatura_del_tratamiento()
+    {
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), [
+            'nombre' => 'Ensayo', 'levadura' => 'Meyerozyma guilliermondii', 'duracion' => '14 días', 'temperatura' => '25 °C',
+        ])->assertOk();
+
+        $tratamiento = Tratamiento::sole();
+        $this->assertSame('Meyerozyma guilliermondii', $tratamiento->levadura);
+        $this->assertSame('14 días', $tratamiento->duracion);
+        $this->assertSame('25 °C', $tratamiento->temperatura);
+    }
+
+    public function test_duracion_y_temperatura_fuera_de_la_lista_se_rechazan()
+    {
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), [
+            'nombre' => 'Ensayo', 'duracion' => '15 días', 'temperatura' => '26 °C',
+        ])->assertJsonValidationErrors([
+            'duracion' => 'Elige una duración de la lista.',
+            'temperatura' => 'Elige una temperatura de la lista.',
+        ]);
+
+        Process::assertNothingRan();
+        $this->assertSame(0, Tratamiento::count());
     }
 }

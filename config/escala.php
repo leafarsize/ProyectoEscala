@@ -57,6 +57,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Condiciones de incubación del tratamiento
+    |--------------------------------------------------------------------------
+    |
+    | Valores fijos para que los tratamientos sean comparables entre sí.
+    | El protocolo de la tesis de Natalia incuba los tallos 14 días a 25 °C
+    | (90 % HR): esos son los valores por defecto del formulario.
+    |
+    */
+
+    'duraciones' => ['7 días', '14 días', '21 días', '28 días'],
+    'duracion_por_defecto' => '14 días',
+
+    'temperaturas' => ['20 °C', '25 °C', '28 °C', '30 °C'],
+    'temperatura_por_defecto' => '25 °C',
+
+    /*
+    |--------------------------------------------------------------------------
     | Usuarios de prueba
     |--------------------------------------------------------------------------
     |

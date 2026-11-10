@@ -42,7 +42,7 @@ class EscaneoController extends Controller
                 ->map(fn (Tratamiento $t) => [
                     'id' => $t->id,
                     'nombre' => $t->nombre,
-                    'medicamento' => $t->medicamento,
+                    'levadura' => $t->levadura,
                     'variedad' => $t->variedad,
                     'lote' => $t->lote,
                     'escaneos' => $t->escaneos_count,
@@ -57,6 +57,13 @@ class EscaneoController extends Controller
             'puedeGuardar' => $puedeGuardar,
             'tratamientos' => $tratamientos,
             'tratamientoInicial' => $tratamientos->contains('id', $inicial) ? $inicial : null,
+            // Opciones fijas de incubación (config/escala.php)
+            'condiciones' => [
+                'duraciones' => config('escala.duraciones'),
+                'duracion' => config('escala.duracion_por_defecto'),
+                'temperaturas' => config('escala.temperaturas'),
+                'temperatura' => config('escala.temperatura_por_defecto'),
+            ],
         ]);
     }
 
@@ -104,7 +111,7 @@ class EscaneoController extends Controller
         // El tratamiento nuevo solo se crea si el análisis salió bien
         [$escaneo, $tratamiento] = DB::transaction(function () use ($request, $usuario, $foto, $resultado, $historial, $tratamiento) {
             $tratamiento ??= Tratamiento::create([
-                ...$request->safe()->only(['nombre', 'medicamento', 'duracion', 'temperatura', 'productor_id']),
+                ...$request->safe()->only(['nombre', 'levadura', 'duracion', 'temperatura', 'productor_id']),
                 'usuario_id' => $usuario->id,
                 'fecha_inicio' => today(),
                 'estado' => Tratamiento::ABIERTO,

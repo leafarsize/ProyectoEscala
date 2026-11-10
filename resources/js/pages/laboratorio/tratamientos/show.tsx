@@ -1,5 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowRight, FileSpreadsheet, ScanLine, Trash2, Undo2 } from 'lucide-react';
+import {
+    ArrowRight,
+    FileSpreadsheet,
+    ScanLine,
+    Trash2,
+    Undo2,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -31,12 +37,16 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { create } from '@/routes/escaneo';
-import { destroy, exportarDetalle, index } from '@/routes/laboratorio/tratamientos';
+import {
+    destroy,
+    exportarDetalle,
+    index,
+} from '@/routes/laboratorio/tratamientos';
 
 type Tratamiento = {
     id: number;
     nombre: string;
-    medicamento: string | null;
+    levadura: string | null;
     duracion: string | null;
     temperatura: string | null;
     /** null en los tratamientos creados sin estos datos */
@@ -52,12 +62,48 @@ type Tratamiento = {
 };
 
 const NIVELES_POR_DEFECTO: NivelConfig[] = [
-    { nivel: 0, etiqueta: 'Sano', referencia: 0, hasta: 3.5, descripcion: 'Sin manchas visibles.' },
-    { nivel: 1, etiqueta: 'Leve', referencia: 7, hasta: 9, descripcion: 'Pequeñas lesiones iniciales.' },
-    { nivel: 2, etiqueta: 'Moderado bajo', referencia: 11, hasta: 14.5, descripcion: 'Aumento en la extensión.' },
-    { nivel: 3, etiqueta: 'Moderado alto', referencia: 18, hasta: 23, descripcion: 'Manchas más definidas.' },
-    { nivel: 4, etiqueta: 'Severo', referencia: 28, hasta: 36, descripcion: 'Manchas más extensas.' },
-    { nivel: 5, etiqueta: 'Muy severo', referencia: 44, hasta: null, descripcion: 'Daño severo y necrosis.' },
+    {
+        nivel: 0,
+        etiqueta: 'Sano',
+        referencia: 0,
+        hasta: 3.5,
+        descripcion: 'Sin manchas visibles.',
+    },
+    {
+        nivel: 1,
+        etiqueta: 'Leve',
+        referencia: 7,
+        hasta: 9,
+        descripcion: 'Pequeñas lesiones iniciales.',
+    },
+    {
+        nivel: 2,
+        etiqueta: 'Moderado bajo',
+        referencia: 11,
+        hasta: 14.5,
+        descripcion: 'Aumento en la extensión.',
+    },
+    {
+        nivel: 3,
+        etiqueta: 'Moderado alto',
+        referencia: 18,
+        hasta: 23,
+        descripcion: 'Manchas más definidas.',
+    },
+    {
+        nivel: 4,
+        etiqueta: 'Severo',
+        referencia: 28,
+        hasta: 36,
+        descripcion: 'Manchas más extensas.',
+    },
+    {
+        nivel: 5,
+        etiqueta: 'Muy severo',
+        referencia: 44,
+        hasta: null,
+        descripcion: 'Daño severo y necrosis.',
+    },
 ];
 
 export default function DetalleTratamiento({
@@ -113,7 +159,9 @@ export default function DetalleTratamiento({
                         {escaneos.length > 0 && (
                             <Button variant="outline" asChild>
                                 <a
-                                    href={exportarDetalle.url({ tratamiento: t.id })}
+                                    href={exportarDetalle.url({
+                                        tratamiento: t.id,
+                                    })}
                                     download
                                 >
                                     <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
@@ -145,8 +193,8 @@ export default function DetalleTratamiento({
 
                 <Seccion titulo="Información del tratamiento">
                     <div className="grid gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 text-sm shadow-sm sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-                        {t.medicamento && (
-                            <Dato titulo="Medicamento" valor={t.medicamento} />
+                        {t.levadura && (
+                            <Dato titulo="Levadura" valor={t.levadura} />
                         )}
                         {t.duracion && (
                             <Dato titulo="Duración" valor={t.duracion} />
@@ -232,7 +280,11 @@ export default function DetalleTratamiento({
                 <Seccion titulo="Efectividad y Evolución del Daño en el Tiempo">
                     <TratamientoHistograma
                         escaneos={escaneos}
-                        niveles={niveles && niveles.length > 0 ? niveles : NIVELES_POR_DEFECTO}
+                        niveles={
+                            niveles && niveles.length > 0
+                                ? niveles
+                                : NIVELES_POR_DEFECTO
+                        }
                     />
                 </Seccion>
             </div>

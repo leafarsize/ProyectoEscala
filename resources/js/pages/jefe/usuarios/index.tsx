@@ -1,6 +1,6 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { Trash2, UserPlus, Users } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import UsuariosController from '@/actions/App/Http/Controllers/UsuariosController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
@@ -17,6 +17,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import {
@@ -63,6 +70,14 @@ function iniciales(nombre: string): string {
         .join('');
 }
 
+/** Quita acentos y pasa a minúsculas, para que "perez" encuentre "Pérez". */
+function normalizar(texto: string): string {
+    return texto
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
 export default function Usuarios({
     usuarios,
     roles,
@@ -71,7 +86,34 @@ export default function Usuarios({
     roles: RolOpcion[];
 }) {
     const [editando, setEditando] = useState<Usuario | null>(null);
-    const activos = usuarios.filter((usuario) => usuario.activo).length;
+    const [buscar, setBuscar] = useState('');
+    const [rol, setRol] = useState('');
+
+    const tieneFiltros = Boolean(buscar || rol);
+
+    // La lista llega completa desde el servidor, así que filtramos en el
+    // cliente: el resultado es inmediato y no hace falta otra petición.
+    const usuariosFiltrados = useMemo(() => {
+        const termino = normalizar(buscar.trim());
+
+        return usuarios.filter((usuario) => {
+            const coincideTexto =
+                termino === '' ||
+                normalizar(usuario.name).includes(termino) ||
+                normalizar(usuario.email).includes(termino);
+
+            return coincideTexto && (rol === '' || usuario.rol === rol);
+        });
+    }, [usuarios, buscar, rol]);
+
+    const activos = usuariosFiltrados.filter(
+        (usuario) => usuario.activo,
+    ).length;
+
+    const limpiarFiltros = () => {
+        setBuscar('');
+        setRol('');
+    };
 
     return (
         <>
@@ -90,8 +132,87 @@ export default function Usuarios({
                     </Button>
                 </div>
 
-                {usuarios.length === 0 ? (
-                    <SinUsuarios />
+                {/* Barra de filtros: búsqueda por nombre o correo y filtro por rol */}
+                {usuarios.length > 0 && (
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                {/* 1. Búsqueda por nombre o correo */}
+                                <div className="relative flex-1">
+                                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        value={buscar}
+                                        onChange={(evento) =>
+                                            setBuscar(evento.target.value)
+                                        }
+                                        placeholder="Buscar por nombre o correo..."
+                                        className="pr-9 pl-9"
+                                    />
+                                    {buscar && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setBuscar('')}
+                                            className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                            title="Borrar texto"
+                                        >
+                                            <X className="size-4" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* 2. Filtro por rol */}
+                                <div className="w-full sm:w-64">
+                                    <Select
+                                        value={rol || 'todos'}
+                                        onValueChange={(valor) =>
+                                            setRol(
+                                                valor === 'todos' ? '' : valor,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Users className="size-4 text-muted-foreground" />
+                                                <SelectValue placeholder="Todos los roles" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="todos">
+                                                Todos los roles
+                                            </SelectItem>
+                                            {roles.map((opcion) => (
+                                                <SelectItem
+                                                    key={opcion.value}
+                                                    value={opcion.value}
+                                                >
+                                                    {opcion.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {tieneFiltros && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={limpiarFiltros}
+                                        title="Limpiar filtros"
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {usuariosFiltrados.length === 0 ? (
+                    <SinUsuarios
+                        tieneFiltros={tieneFiltros}
+                        onLimpiar={limpiarFiltros}
+                    />
                 ) : (
                     <>
                         <Card className="overflow-hidden py-0">
@@ -111,7 +232,7 @@ export default function Usuarios({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {usuarios.map((usuario) => (
+                                        {usuariosFiltrados.map((usuario) => (
                                             <tr
                                                 key={usuario.id}
                                                 role="button"
@@ -180,6 +301,11 @@ export default function Usuarios({
                             </div>
                         </Card>
 
+                        <p className="text-xs text-muted-foreground">
+                            {tieneFiltros
+                                ? `${usuariosFiltrados.length} de ${usuarios.length} usuarios · ${activos} con la cuenta activa`
+                                : `${usuarios.length} usuarios · ${activos} con la cuenta activa`}
+                        </p>
                     </>
                 )}
             </div>
@@ -432,17 +558,40 @@ function ModalUsuario({
     );
 }
 
-function SinUsuarios() {
+function SinUsuarios({
+    tieneFiltros = false,
+    onLimpiar,
+}: {
+    tieneFiltros?: boolean;
+    onLimpiar?: () => void;
+}) {
     return (
         <Card>
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                <Users className="size-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                    Todavía no hay usuarios registrados.
+                {tieneFiltros ? (
+                    <Search className="size-8 text-muted-foreground" />
+                ) : (
+                    <Users className="size-8 text-muted-foreground" />
+                )}
+                <p className="font-medium">
+                    {tieneFiltros
+                        ? 'Ningún usuario coincide con la búsqueda'
+                        : 'Todavía no hay usuarios registrados'}
                 </p>
-                <Button asChild>
-                    <Link href={rutaCrear()}>Crear el primero</Link>
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                    {tieneFiltros
+                        ? 'Prueba con otro nombre, otro correo u otro rol.'
+                        : 'Crea la primera cuenta para empezar a trabajar.'}
+                </p>
+                {tieneFiltros ? (
+                    <Button variant="outline" onClick={onLimpiar}>
+                        Limpiar filtros
+                    </Button>
+                ) : (
+                    <Button asChild>
+                        <Link href={rutaCrear()}>Crear el primero</Link>
+                    </Button>
+                )}
             </CardContent>
         </Card>
     );

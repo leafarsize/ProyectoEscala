@@ -112,7 +112,7 @@ class TratamientoController extends Controller
             fputcsv($salida, [
                 'ID',
                 'Tratamiento',
-                'Medicamento / Producto',
+                'Levadura',
                 'Duración',
                 'Temperatura',
                 'Variedad',
@@ -152,7 +152,7 @@ class TratamientoController extends Controller
                 fputcsv($salida, [
                     $t->id,
                     $t->nombre,
-                    $t->medicamento ?? 'N/A',
+                    $t->levadura ?? 'N/A',
                     $t->duracion ?? 'N/A',
                     $t->temperatura ?? 'N/A',
                     $t->variedad ?? 'N/A',
@@ -197,7 +197,7 @@ class TratamientoController extends Controller
             // Ficha del tratamiento
             fputcsv($salida, ['REPORTE DE TRATAMIENTO - PROYECTO ESCALA'], escape: '\\');
             fputcsv($salida, ['Tratamiento', $tratamiento->nombre], escape: '\\');
-            fputcsv($salida, ['Medicamento', $tratamiento->medicamento ?? 'N/A'], escape: '\\');
+            fputcsv($salida, ['Levadura', $tratamiento->levadura ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Duración', $tratamiento->duracion ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Temperatura', $tratamiento->temperatura ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Responsable', $tratamiento->usuario->name], escape: '\\');
@@ -285,14 +285,14 @@ class TratamientoController extends Controller
     }
 
     /**
-     * @return array{id: int, nombre: string, medicamento: string|null, duracion: string|null, temperatura: string|null, variedad: string|null, lote: string|null, fecha_inicio: string, estado: string, responsable: string}
+     * @return array{id: int, nombre: string, levadura: string|null, duracion: string|null, temperatura: string|null, variedad: string|null, lote: string|null, fecha_inicio: string, estado: string, responsable: string}
      */
     private function datos(Tratamiento $t): array
     {
         return [
             'id' => $t->id,
             'nombre' => $t->nombre,
-            'medicamento' => $t->medicamento,
+            'levadura' => $t->levadura,
             'duracion' => $t->duracion,
             'temperatura' => $t->temperatura,
             'variedad' => $t->variedad,

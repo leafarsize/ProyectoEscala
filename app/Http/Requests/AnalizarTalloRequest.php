@@ -7,6 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -35,9 +36,11 @@ class AnalizarTalloRequest extends FormRequest
             'tratamiento_id' => ['nullable', 'integer', 'exists:tratamientos,id'],
             // …o el primero de un tratamiento nuevo
             'nombre' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:255'],
-            'medicamento' => ['nullable', 'string', 'max:150'],
-            'duracion' => ['nullable', 'string', 'max:50'],
-            'temperatura' => ['nullable', 'string', 'max:50'],
+            // Levadura de biocontrol aplicada (o "Testigo" si no se aplicó ninguna)
+            'levadura' => ['nullable', 'string', 'max:150'],
+            // Solo los valores de config/escala.php, para que los tratamientos sean comparables
+            'duracion' => ['nullable', Rule::in(Config::array('escala.duraciones'))],
+            'temperatura' => ['nullable', Rule::in(Config::array('escala.temperaturas'))],
             // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
             'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [
@@ -90,6 +93,8 @@ class AnalizarTalloRequest extends FormRequest
             'nombre.required_without' => 'Escribe el nombre del tratamiento.',
             'numero_cana.required' => 'Escribe el número de caña.',
             'productor_id.exists' => 'Elige un productor válido.',
+            'duracion.in' => 'Elige una duración de la lista.',
+            'temperatura.in' => 'Elige una temperatura de la lista.',
         ];
     }
 }

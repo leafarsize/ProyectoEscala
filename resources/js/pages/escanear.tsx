@@ -55,7 +55,7 @@ type Resultado = {
 type TratamientoOpcion = {
     id: number;
     nombre: string;
-    medicamento: string | null;
+    levadura: string | null;
     /** null en los tratamientos creados después de quitarlos del formulario */
     variedad: string | null;
     lote: string | null;
@@ -66,7 +66,7 @@ type DatosEscaneo = {
     imagen: File | null;
     tratamiento_id: string;
     nombre: string;
-    medicamento: string;
+    levadura: string;
     duracion: string;
     temperatura: string;
     /** Identifica el tallo de la foto dentro del tratamiento */
@@ -74,6 +74,14 @@ type DatosEscaneo = {
 };
 
 type Modo = 'nuevo' | 'existente';
+
+/** Opciones fijas de incubación (config/escala.php) y sus valores por defecto */
+type Condiciones = {
+    duraciones: string[];
+    duracion: string;
+    temperaturas: string[];
+    temperatura: string;
+};
 
 const FORMATOS = 'image/jpeg,image/png,image/webp';
 
@@ -83,20 +91,22 @@ export default function Escanear({
     puedeGuardar,
     tratamientos,
     tratamientoInicial,
+    condiciones,
 }: {
     maxKb: number;
     niveles: Nivel[];
     puedeGuardar: boolean;
     tratamientos: TratamientoOpcion[];
     tratamientoInicial: number | null;
+    condiciones: Condiciones;
 }) {
     const http = useHttp<DatosEscaneo, Resultado>({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
-        medicamento: '',
-        duracion: '',
-        temperatura: '',
+        levadura: '',
+        duracion: condiciones.duracion,
+        temperatura: condiciones.temperatura,
         numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
@@ -132,7 +142,7 @@ export default function Escanear({
         http.clearErrors(
             'tratamiento_id',
             'nombre',
-            'medicamento',
+            'levadura',
             'duracion',
             'temperatura',
         );
@@ -221,9 +231,9 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: '',
                 nombre: '',
-                medicamento: '',
-                duracion: '',
-                temperatura: '',
+                levadura: '',
+                duracion: condiciones.duracion,
+                temperatura: condiciones.temperatura,
                 numero_cana: '',
             });
             setModo('nuevo');
@@ -299,6 +309,7 @@ export default function Escanear({
                                 }}
                                 errores={http.errors}
                                 tratamientos={tratamientos}
+                                condiciones={condiciones}
                                 deshabilitado={http.processing}
                             />
                         )}
@@ -373,6 +384,7 @@ function SeccionTratamiento({
     onCambio,
     errores,
     tratamientos,
+    condiciones,
     deshabilitado,
 }: {
     modo: Modo;
@@ -384,6 +396,7 @@ function SeccionTratamiento({
     ) => void;
     errores: Partial<Record<keyof DatosEscaneo, string>>;
     tratamientos: TratamientoOpcion[];
+    condiciones: Condiciones;
     deshabilitado: boolean;
 }) {
     return (
@@ -439,18 +452,18 @@ function SeccionTratamiento({
                         </Campo>
 
                         <Campo
-                            id="medicamento"
-                            etiqueta="Medicamento / Producto"
-                            error={errores.medicamento}
+                            id="levadura"
+                            etiqueta="Levadura"
+                            error={errores.levadura}
                         >
                             <Input
-                                id="medicamento"
-                                placeholder="Ej. Mancozeb, Trichoderma..."
-                                value={datos.medicamento}
+                                id="levadura"
+                                placeholder="Ej. M. guilliermondii, o Testigo si no lleva levadura"
+                                value={datos.levadura}
                                 maxLength={150}
                                 disabled={deshabilitado}
                                 onChange={(e) =>
-                                    onCambio('medicamento', e.target.value)
+                                    onCambio('levadura', e.target.value)
                                 }
                             />
                         </Campo>
@@ -461,14 +474,13 @@ function SeccionTratamiento({
                                 etiqueta="Duración"
                                 error={errores.duracion}
                             >
-                                <Input
+                                <ListaOpciones
                                     id="duracion"
-                                    placeholder="Ej. 15 días"
-                                    value={datos.duracion}
-                                    maxLength={50}
-                                    disabled={deshabilitado}
-                                    onChange={(e) =>
-                                        onCambio('duracion', e.target.value)
+                                    valor={datos.duracion}
+                                    opciones={condiciones.duraciones}
+                                    deshabilitado={deshabilitado}
+                                    onCambio={(valor) =>
+                                        onCambio('duracion', valor)
                                     }
                                 />
                             </Campo>
@@ -478,14 +490,13 @@ function SeccionTratamiento({
                                 etiqueta="Temperatura"
                                 error={errores.temperatura}
                             >
-                                <Input
+                                <ListaOpciones
                                     id="temperatura"
-                                    placeholder="Ej. 25 °C"
-                                    value={datos.temperatura}
-                                    maxLength={50}
-                                    disabled={deshabilitado}
-                                    onChange={(e) =>
-                                        onCambio('temperatura', e.target.value)
+                                    valor={datos.temperatura}
+                                    opciones={condiciones.temperaturas}
+                                    deshabilitado={deshabilitado}
+                                    onCambio={(valor) =>
+                                        onCambio('temperatura', valor)
                                     }
                                 />
                             </Campo>
@@ -512,7 +523,7 @@ function SeccionTratamiento({
                                     <SelectItem key={t.id} value={String(t.id)}>
                                         {[
                                             t.nombre,
-                                            t.medicamento,
+                                            t.levadura,
                                             t.variedad,
                                             t.lote,
                                         ]
@@ -548,6 +559,42 @@ function SeccionTratamiento({
                 </Campo>
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * Lista desplegable con valores fijos (config/escala.php).
+ */
+function ListaOpciones({
+    id,
+    valor,
+    opciones,
+    deshabilitado,
+    onCambio,
+}: {
+    id: string;
+    valor: string;
+    opciones: string[];
+    deshabilitado: boolean;
+    onCambio: (valor: string) => void;
+}) {
+    return (
+        <Select
+            value={valor || undefined}
+            disabled={deshabilitado}
+            onValueChange={onCambio}
+        >
+            <SelectTrigger id={id} className="w-full">
+                <SelectValue placeholder="Elige una opción" />
+            </SelectTrigger>
+            <SelectContent>
+                {opciones.map((opcion) => (
+                    <SelectItem key={opcion} value={opcion}>
+                        {opcion}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 }
 

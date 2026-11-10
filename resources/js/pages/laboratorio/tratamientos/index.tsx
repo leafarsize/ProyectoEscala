@@ -32,7 +32,7 @@ import { exportar, index, show } from '@/routes/laboratorio/tratamientos';
 type TratamientoResumen = {
     id: number;
     nombre: string;
-    medicamento: string | null;
+    levadura: string | null;
     duracion: string | null;
     temperatura: string | null;
     /** null en los tratamientos creados sin estos datos */
@@ -69,17 +69,24 @@ export default function Tratamientos({
     laboratoristas?: string[];
 }) {
     const [buscar, setBuscar] = useState(filtros.buscar || '');
-    const [laboratorista, setLaboratorista] = useState(filtros.laboratorista || '');
+    const [laboratorista, setLaboratorista] = useState(
+        filtros.laboratorista || '',
+    );
     const primerRender = useRef(true);
 
     const tieneFiltros = Boolean(filtros.buscar || filtros.laboratorista);
 
-    const ejecutarBusqueda = (nuevoBuscar: string, nuevoLaboratorista: string) => {
+    const ejecutarBusqueda = (
+        nuevoBuscar: string,
+        nuevoLaboratorista: string,
+    ) => {
         router.get(
             index.url({
                 query: {
                     ...(nuevoBuscar ? { buscar: nuevoBuscar } : {}),
-                    ...(nuevoLaboratorista ? { laboratorista: nuevoLaboratorista } : {}),
+                    ...(nuevoLaboratorista
+                        ? { laboratorista: nuevoLaboratorista }
+                        : {}),
                 },
             }),
             {},
@@ -131,9 +138,14 @@ export default function Tratamientos({
                             <a
                                 href={exportar.url({
                                     query: {
-                                        ...(filtros.buscar ? { buscar: filtros.buscar } : {}),
+                                        ...(filtros.buscar
+                                            ? { buscar: filtros.buscar }
+                                            : {}),
                                         ...(filtros.laboratorista
-                                            ? { laboratorista: filtros.laboratorista }
+                                            ? {
+                                                  laboratorista:
+                                                      filtros.laboratorista,
+                                              }
                                             : {}),
                                     },
                                 })}
@@ -163,7 +175,7 @@ export default function Tratamientos({
                                     value={buscar}
                                     onChange={(e) => setBuscar(e.target.value)}
                                     placeholder="Buscar por nombre de tratamiento..."
-                                    className="pl-9 pr-9"
+                                    className="pr-9 pl-9"
                                 />
                                 {buscar && (
                                     <button
@@ -172,7 +184,7 @@ export default function Tratamientos({
                                             setBuscar('');
                                             ejecutarBusqueda('', laboratorista);
                                         }}
-                                        className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                                        className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
                                         title="Borrar texto"
                                     >
                                         <X className="size-4" />
@@ -185,7 +197,8 @@ export default function Tratamientos({
                                 <Select
                                     value={laboratorista || 'todos'}
                                     onValueChange={(val) => {
-                                        const nuevo = val === 'todos' ? '' : val;
+                                        const nuevo =
+                                            val === 'todos' ? '' : val;
                                         setLaboratorista(nuevo);
                                         ejecutarBusqueda(buscar, nuevo);
                                     }}
@@ -201,7 +214,10 @@ export default function Tratamientos({
                                             Todos los laboratoristas
                                         </SelectItem>
                                         {laboratoristas.map((nombre) => (
-                                            <SelectItem key={nombre} value={nombre}>
+                                            <SelectItem
+                                                key={nombre}
+                                                value={nombre}
+                                            >
                                                 {nombre}
                                             </SelectItem>
                                         ))}
@@ -211,7 +227,11 @@ export default function Tratamientos({
 
                             {/* Botón buscar y botón limpiar */}
                             <div className="flex items-center gap-2">
-                                <Button type="submit" variant="secondary" className="px-4">
+                                <Button
+                                    type="submit"
+                                    variant="secondary"
+                                    className="px-4"
+                                >
                                     Buscar
                                 </Button>
                                 {tieneFiltros && (
@@ -347,7 +367,7 @@ function TarjetaTratamiento({
                     <p className="leading-tight font-semibold">{t.nombre}</p>
                     <p className="text-xs text-muted-foreground">
                         {[
-                            t.medicamento,
+                            t.levadura,
                             t.variedad,
                             t.lote,
                             `desde ${formatoDia.format(new Date(t.fecha_inicio))}`,

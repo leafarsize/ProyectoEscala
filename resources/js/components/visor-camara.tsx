@@ -124,18 +124,28 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
         }
 
         if (!streamObtenido) {
-            const errObj = ultimoError as { name?: string; message?: string } | null;
+            const errObj = ultimoError as {
+                name?: string;
+                message?: string;
+            } | null;
             const errName = errObj?.name || 'Error';
-            const errMsg = errObj?.message || 'No fue posible abrir el sensor de cámara';
+            const errMsg =
+                errObj?.message || 'No fue posible abrir el sensor de cámara';
 
             console.error('Error al solicitar cámara:', ultimoError);
 
-            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+            if (
+                errName === 'NotAllowedError' ||
+                errName === 'PermissionDeniedError'
+            ) {
                 setError('Permiso de cámara denegado');
                 setErrorDetalle(
                     'El navegador no tiene permiso para usar la cámara o fue cancelado. Puedes habilitarlo en los ajustes del sitio o usar la cámara nativa.',
                 );
-            } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+            } else if (
+                errName === 'NotReadableError' ||
+                errName === 'TrackStartError'
+            ) {
                 setError('La cámara está ocupada');
                 setErrorDetalle(
                     'Otra aplicación (o pestaña) está utilizando la cámara de tu teléfono. Ciérrala y vuelve a intentar, o usa la cámara nativa.',
@@ -260,7 +270,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                         detenerCamara();
                         onCerrar();
                     }}
-                    className="size-11 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-md"
+                    className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
                     aria-label="Cerrar cámara"
                 >
                     <X className="size-6" />
@@ -277,7 +287,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                                 : 'text-neutral-300 hover:text-white'
                         }`}
                     >
-                        📏 ~30 cm (Normal)
+                         ~30 cm (Normal)
                     </button>
                     <button
                         type="button"
@@ -288,7 +298,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                                 : 'text-neutral-300 hover:text-white'
                         }`}
                     >
-                        🔍 ~20 cm (Cerca)
+                         ~20 cm (Cerca)
                     </button>
                 </div>
 
@@ -297,7 +307,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                     variant="ghost"
                     size="icon"
                     onClick={cambiarCamara}
-                    className="size-11 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-md"
+                    className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
                     aria-label="Cambiar cámara"
                 >
                     <SwitchCamera className="size-6" />
@@ -324,13 +334,13 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                 )}
 
                 {error ? (
-                    <div className="relative z-20 mx-4 max-w-sm rounded-2xl bg-card p-6 text-center text-foreground shadow-2xl border border-border">
+                    <div className="relative z-20 mx-4 max-w-sm rounded-2xl border border-border bg-card p-6 text-center text-foreground shadow-2xl">
                         <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                             <Info className="size-6" />
                         </div>
                         <h3 className="text-base font-bold">{error}</h3>
                         {errorDetalle && (
-                            <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                                 {errorDetalle}
                             </p>
                         )}
@@ -371,7 +381,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                     </div>
                 ) : (
                     /* Marco guía proporcional 10 de ancho × 15 de alto (aspecto 10/15 o 2/3) */
-                    <div className="relative z-10 flex items-center justify-center pointer-events-none">
+                    <div className="pointer-events-none relative z-10 flex items-center justify-center">
                         <div
                             className="relative flex flex-col items-center justify-between rounded-2xl border-2 border-primary/95 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300"
                             style={{
@@ -390,13 +400,13 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                             <span className="absolute -top-0.5 -left-0.5 size-7 rounded-tl-xl border-t-4 border-l-4 border-primary" />
                             <span className="absolute -top-0.5 -right-0.5 size-7 rounded-tr-xl border-t-4 border-r-4 border-primary" />
                             <span className="absolute -bottom-0.5 -left-0.5 size-7 rounded-bl-xl border-b-4 border-l-4 border-primary" />
-                            <span className="absolute -bottom-0.5 -right-0.5 size-7 rounded-br-xl border-b-4 border-r-4 border-primary" />
+                            <span className="absolute -right-0.5 -bottom-0.5 size-7 rounded-br-xl border-r-4 border-b-4 border-primary" />
 
                             {/* Cotas dimensionales (10 cm ancho × 15 cm alto) */}
-                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded bg-black/75 px-2 py-0.5 text-[10px] font-mono text-primary font-bold">
+                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
                                 ↔ 10 cm
                             </div>
-                            <div className="absolute -left-7 top-1/2 -translate-y-1/2 -rotate-90 rounded bg-black/75 px-2 py-0.5 text-[10px] font-mono text-primary font-bold whitespace-nowrap">
+                            <div className="absolute top-1/2 -left-7 -translate-y-1/2 -rotate-90 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold whitespace-nowrap text-primary">
                                 ↕ 15 cm
                             </div>
 
@@ -407,11 +417,13 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                             <div className="absolute inset-y-8 left-1/2 w-14 -translate-x-1/2 rounded-full border border-dashed border-primary/30 bg-primary/5" />
 
                             {/* Etiquetas informativas dentro del marco */}
-                            <div className="mt-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md shadow">
+                            <div className="mt-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold text-white shadow backdrop-blur-md">
                                 Tallo de caña (10 × 15 cm)
                             </div>
-                            <div className="mb-3 rounded-full bg-black/70 px-3 py-1 text-[10px] font-medium text-white/95 backdrop-blur-md shadow">
-                                Distancia: {distancia === '30cm' ? '~30 cm' : '~20 cm'} sobre fondo claro
+                            <div className="mb-3 rounded-full bg-black/70 px-3 py-1 text-[10px] font-medium text-white/95 shadow backdrop-blur-md">
+                                Distancia:{' '}
+                                {distancia === '30cm' ? '~30 cm' : '~20 cm'}{' '}
+                                sobre fondo claro
                             </div>
                         </div>
                     </div>
@@ -424,13 +436,15 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                 <button
                     type="button"
                     onClick={() => inputNativaRef.current?.click()}
-                    className="flex flex-col items-center gap-1 text-xs text-white/80 hover:text-white transition-opacity active:opacity-70"
+                    className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
                     title="Usar app de cámara de tu celular"
                 >
                     <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
                         <Smartphone className="size-5" />
                     </span>
-                    <span className="text-[11px] font-medium">Cámara celular</span>
+                    <span className="text-[11px] font-medium">
+                        Cámara celular
+                    </span>
                 </button>
 
                 {/* Opción 2: Disparador central del visor en vivo */}
@@ -450,7 +464,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                 <button
                     type="button"
                     onClick={() => inputGaleriaRef.current?.click()}
-                    className="flex flex-col items-center gap-1 text-xs text-white/80 hover:text-white transition-opacity active:opacity-70"
+                    className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
                 >
                     <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
                         <ImageUp className="size-5" />

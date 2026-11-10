@@ -21,9 +21,10 @@ class TratamientoFactory extends Factory
         return [
             'usuario_id' => User::factory(),
             'nombre' => 'Ensayo '.fake()->unique()->numberBetween(1, 9999),
-            'medicamento' => fake()->randomElement(['Mancozeb', 'Trichoderma harzianum', 'Azoxistrobina', 'Testigo']),
-            'duracion' => fake()->randomElement(['7 días', '15 días', '30 días']),
-            'temperatura' => fake()->randomElement(['24 °C', '26 °C', '28 °C']),
+            // Levaduras de biocontrol de la tesis de Natalia, o el testigo sin levadura
+            'levadura' => fake()->randomElement(['Meyerozyma guilliermondii', 'Meyerozyma caribbica', 'Yamadazyma mexicana', 'Testigo']),
+            'duracion' => fake()->randomElement(config('escala.duraciones')),
+            'temperatura' => fake()->randomElement(config('escala.temperaturas')),
             'variedad' => fake()->randomElement(['CP 72-2086', 'Mex 69-290', 'ITV 92-1424']),
             'lote' => 'Lote '.fake()->numberBetween(1, 40),
             'fecha_inicio' => now()->toDateString(),
