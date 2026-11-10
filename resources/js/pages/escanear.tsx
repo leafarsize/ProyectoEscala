@@ -55,6 +55,7 @@ type Resultado = {
 type TratamientoOpcion = {
     id: number;
     nombre: string;
+    medicamento: string | null;
     /** null en los tratamientos creados después de quitarlos del formulario */
     variedad: string | null;
     lote: string | null;
@@ -65,6 +66,9 @@ type DatosEscaneo = {
     imagen: File | null;
     tratamiento_id: string;
     nombre: string;
+    medicamento: string;
+    duracion: string;
+    temperatura: string;
     /** Identifica el tallo de la foto dentro del tratamiento */
     numero_cana: string;
 };
@@ -90,6 +94,9 @@ export default function Escanear({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
+        medicamento: '',
+        duracion: '',
+        temperatura: '',
         numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
@@ -122,7 +129,13 @@ export default function Escanear({
 
     const cambiarModo = (nuevo: Modo) => {
         setModo(nuevo);
-        http.clearErrors('tratamiento_id', 'nombre');
+        http.clearErrors(
+            'tratamiento_id',
+            'nombre',
+            'medicamento',
+            'duracion',
+            'temperatura',
+        );
         // En un tratamiento nuevo no se envía tratamiento_id
         if (nuevo === 'nuevo') {
             http.setData('tratamiento_id', '');
@@ -208,6 +221,9 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: '',
                 nombre: '',
+                medicamento: '',
+                duracion: '',
+                temperatura: '',
                 numero_cana: '',
             });
             setModo('nuevo');
@@ -416,12 +432,64 @@ function SeccionTratamiento({
                                 value={datos.nombre}
                                 maxLength={255}
                                 disabled={deshabilitado}
-
                                 onChange={(e) =>
                                     onCambio('nombre', e.target.value)
                                 }
                             />
                         </Campo>
+
+                        <Campo
+                            id="medicamento"
+                            etiqueta="Medicamento / Producto"
+                            error={errores.medicamento}
+                        >
+                            <Input
+                                id="medicamento"
+                                placeholder="Ej. Mancozeb, Trichoderma..."
+                                value={datos.medicamento}
+                                maxLength={150}
+                                disabled={deshabilitado}
+                                onChange={(e) =>
+                                    onCambio('medicamento', e.target.value)
+                                }
+                            />
+                        </Campo>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <Campo
+                                id="duracion"
+                                etiqueta="Duración"
+                                error={errores.duracion}
+                            >
+                                <Input
+                                    id="duracion"
+                                    placeholder="Ej. 15 días"
+                                    value={datos.duracion}
+                                    maxLength={50}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('duracion', e.target.value)
+                                    }
+                                />
+                            </Campo>
+
+                            <Campo
+                                id="temperatura"
+                                etiqueta="Temperatura"
+                                error={errores.temperatura}
+                            >
+                                <Input
+                                    id="temperatura"
+                                    placeholder="Ej. 25 °C"
+                                    value={datos.temperatura}
+                                    maxLength={50}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('temperatura', e.target.value)
+                                    }
+                                />
+                            </Campo>
+                        </div>
                     </>
                 ) : (
                     <Campo
@@ -442,8 +510,12 @@ function SeccionTratamiento({
                             <SelectContent>
                                 {tratamientos.map((t) => (
                                     <SelectItem key={t.id} value={String(t.id)}>
-                                        {/* variedad y lote solo existen en los tratamientos antiguos */}
-                                        {[t.nombre, t.variedad, t.lote]
+                                        {[
+                                            t.nombre,
+                                            t.medicamento,
+                                            t.variedad,
+                                            t.lote,
+                                        ]
                                             .filter(Boolean)
                                             .join(' · ')}{' '}
                                         ({t.escaneos}{' '}
@@ -609,7 +681,8 @@ function ZonaFoto({
             </label>
 
             <p className="text-center text-xs text-muted-foreground">
-                Recomendación: corte longitudinal de entrenudo de 10 × 15 cm a ~30 cm de distancia sobre fondo blanco liso.
+                Recomendación: corte longitudinal de entrenudo de 10 × 15 cm a
+                ~30 cm de distancia sobre fondo blanco liso.
             </p>
         </div>
     );
@@ -875,13 +948,6 @@ function EscalaSeveridad({
                     );
                 })}
             </ol>
-            <p className="text-xs text-muted-foreground">
-                {niveles
-                    .filter((_, i) => i === 0 || i === niveles.length - 1)
-                    .map((n) => `${n.nivel} = ${n.etiqueta}`)
-                    .join('  ')}{' '}
-                rangos provisionales
-            </p>
         </div>
     );
 }

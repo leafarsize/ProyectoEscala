@@ -294,7 +294,12 @@ class TratamientosTest extends TestCase
     {
         $laboratorista = User::factory()->create(['name' => 'Ana']);
         $productor = User::factory()->rol(Rol::Productor)->create(['name' => 'Don Productor']);
-        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['productor_id' => $productor->id]);
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create([
+            'productor_id' => $productor->id,
+            'medicamento' => 'Mancozeb 80%',
+            'duracion' => '14 días',
+            'temperatura' => '25 °C',
+        ]);
         $segundo = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['created_at' => now()->subDay()]);
         $primero = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['created_at' => now()->subDays(5)]);
         $tercero = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create();
@@ -305,6 +310,9 @@ class TratamientosTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('laboratorio/tratamientos/show')
                 ->where('tratamiento.id', $tratamiento->id)
+                ->where('tratamiento.medicamento', 'Mancozeb 80%')
+                ->where('tratamiento.duracion', '14 días')
+                ->where('tratamiento.temperatura', '25 °C')
                 ->where('tratamiento.responsable', 'Ana')
                 ->where('tratamiento.productor', 'Don Productor')
                 ->where('tratamiento.puede_agregar', true)
@@ -446,5 +454,65 @@ class TratamientosTest extends TestCase
         $this->actingAs($laboratorista)
             ->get(route('laboratorio.tratamientos.show', $invitado))
             ->assertInertia(fn (Assert $page) => $page->where('tratamiento.puede_eliminar', false));
+    }
+
+    public function test_se_puede_filtrar_tratamientos_por_nombre()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        Tratamiento::factory()->create(['nombre' => 'Ensayo Fusarium 2026']);
+        Tratamiento::factory()->create(['nombre' => 'Control Roya']);
+
+        $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.index', ['buscar' => 'Fusarium']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tratamientos.data', 1)
+                ->where('tratamientos.data.0.nombre', 'Ensayo Fusarium 2026')
+                ->where('filtros.buscar', 'Fusarium'));
+    }
+
+    public function test_se_puede_filtrar_tratamientos_por_laboratorista()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        $carlos = User::factory()->create(['name' => 'Carlos Laboratorista']);
+        $maria = User::factory()->create(['name' => 'María Laboratorista']);
+
+        Tratamiento::factory()->for($carlos, 'usuario')->create(['nombre' => 'Ensayo Carlos']);
+        Tratamiento::factory()->for($maria, 'usuario')->create(['nombre' => 'Ensayo María']);
+
+        $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.index', ['laboratorista' => 'Carlos']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tratamientos.data', 1)
+                ->where('tratamientos.data.0.nombre', 'Ensayo Carlos')
+                ->where('filtros.laboratorista', 'Carlos'));
+    }
+
+    public function test_se_puede_exportar_reporte_de_tratamientos_a_excel()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        Tratamiento::factory()->create(['nombre' => 'Ensayo Exportar']);
+
+        $response = $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.exportar'))
+            ->assertOk();
+
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+        $this->assertStringContainsString('reporte_tratamientos_', $response->headers->get('content-disposition'));
+    }
+
+    public function test_se_puede_exportar_detalle_de_un_tratamiento_a_excel()
+    {
+        $laboratorista = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Ensayo Detalle']);
+        Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['numero_cana' => 'Caña 1']);
+
+        $response = $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.exportar-detalle', $tratamiento))
+            ->assertOk();
+
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+        $this->assertStringContainsString('reporte_ensayo-detalle_', $response->headers->get('content-disposition'));
     }
 }
