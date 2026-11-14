@@ -55,7 +55,6 @@ type Resultado = {
 type TratamientoOpcion = {
     id: number;
     nombre: string;
-    levadura: string | null;
     /** null en los tratamientos creados después de quitarlos del formulario */
     variedad: string | null;
     lote: string | null;
@@ -66,21 +65,24 @@ type DatosEscaneo = {
     imagen: File | null;
     tratamiento_id: string;
     nombre: string;
-    levadura: string;
-    duracion: string;
     temperatura: string;
+    /** Inicio y fin de la incubación (AAAA-MM-DD), elegidos en el calendario */
+    fecha_inicio: string;
+    fecha_fin: string;
     /** Identifica el tallo de la foto dentro del tratamiento */
     numero_cana: string;
 };
 
 type Modo = 'nuevo' | 'existente';
 
-/** Opciones fijas de incubación (config/escala.php) y sus valores por defecto */
+/** Condiciones de incubación (config/escala.php) y sus valores por defecto */
 type Condiciones = {
-    duraciones: string[];
-    duracion: string;
     temperaturas: string[];
     temperatura: string;
+    /** Hoy */
+    fecha_inicio: string;
+    /** Hoy + dias_por_defecto, solo como propuesta */
+    fecha_fin: string;
 };
 
 const FORMATOS = 'image/jpeg,image/png,image/webp';
@@ -104,9 +106,9 @@ export default function Escanear({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
-        levadura: '',
-        duracion: condiciones.duracion,
         temperatura: condiciones.temperatura,
+        fecha_inicio: condiciones.fecha_inicio,
+        fecha_fin: condiciones.fecha_fin,
         numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
@@ -142,9 +144,9 @@ export default function Escanear({
         http.clearErrors(
             'tratamiento_id',
             'nombre',
-            'levadura',
-            'duracion',
             'temperatura',
+            'fecha_inicio',
+            'fecha_fin',
         );
         // En un tratamiento nuevo no se envía tratamiento_id
         if (nuevo === 'nuevo') {
@@ -231,9 +233,9 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: '',
                 nombre: '',
-                levadura: '',
-                duracion: condiciones.duracion,
                 temperatura: condiciones.temperatura,
+                fecha_inicio: condiciones.fecha_inicio,
+                fecha_fin: condiciones.fecha_fin,
                 numero_cana: '',
             });
             setModo('nuevo');
@@ -442,6 +444,7 @@ function SeccionTratamiento({
                         >
                             <Input
                                 id="nombre"
+                                placeholder="Ej. M. guilliermondii lote 3, o Testigo"
                                 value={datos.nombre}
                                 maxLength={255}
                                 disabled={deshabilitado}
@@ -451,56 +454,56 @@ function SeccionTratamiento({
                             />
                         </Campo>
 
-                        <Campo
-                            id="levadura"
-                            etiqueta="Levadura"
-                            error={errores.levadura}
-                        >
-                            <Input
-                                id="levadura"
-                                placeholder="Ej. M. guilliermondii, o Testigo si no lleva levadura"
-                                value={datos.levadura}
-                                maxLength={150}
-                                disabled={deshabilitado}
-                                onChange={(e) =>
-                                    onCambio('levadura', e.target.value)
-                                }
-                            />
-                        </Campo>
-
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Campo
-                                id="duracion"
-                                etiqueta="Duración"
-                                error={errores.duracion}
+                                id="fecha_inicio"
+                                etiqueta="Fecha de inicio"
+                                error={errores.fecha_inicio}
                             >
-                                <ListaOpciones
-                                    id="duracion"
-                                    valor={datos.duracion}
-                                    opciones={condiciones.duraciones}
-                                    deshabilitado={deshabilitado}
-                                    onCambio={(valor) =>
-                                        onCambio('duracion', valor)
+                                <Input
+                                    id="fecha_inicio"
+                                    type="date"
+                                    value={datos.fecha_inicio}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('fecha_inicio', e.target.value)
                                     }
                                 />
                             </Campo>
 
                             <Campo
-                                id="temperatura"
-                                etiqueta="Temperatura"
-                                error={errores.temperatura}
+                                id="fecha_fin"
+                                etiqueta="Fecha de término"
+                                error={errores.fecha_fin}
                             >
-                                <ListaOpciones
-                                    id="temperatura"
-                                    valor={datos.temperatura}
-                                    opciones={condiciones.temperaturas}
-                                    deshabilitado={deshabilitado}
-                                    onCambio={(valor) =>
-                                        onCambio('temperatura', valor)
+                                <Input
+                                    id="fecha_fin"
+                                    type="date"
+                                    min={datos.fecha_inicio || undefined}
+                                    value={datos.fecha_fin}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('fecha_fin', e.target.value)
                                     }
                                 />
                             </Campo>
                         </div>
+
+                        <Campo
+                            id="temperatura"
+                            etiqueta="Temperatura"
+                            error={errores.temperatura}
+                        >
+                            <ListaOpciones
+                                id="temperatura"
+                                valor={datos.temperatura}
+                                opciones={condiciones.temperaturas}
+                                deshabilitado={deshabilitado}
+                                onCambio={(valor) =>
+                                    onCambio('temperatura', valor)
+                                }
+                            />
+                        </Campo>
                     </>
                 ) : (
                     <Campo
@@ -521,12 +524,7 @@ function SeccionTratamiento({
                             <SelectContent>
                                 {tratamientos.map((t) => (
                                     <SelectItem key={t.id} value={String(t.id)}>
-                                        {[
-                                            t.nombre,
-                                            t.levadura,
-                                            t.variedad,
-                                            t.lote,
-                                        ]
+                                        {[t.nombre, t.variedad, t.lote]
                                             .filter(Boolean)
                                             .join(' · ')}{' '}
                                         ({t.escaneos}{' '}

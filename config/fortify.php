@@ -167,7 +167,8 @@ return [
     */
 
     'features' => [
-        Features::resetPasswords(),
+        // Sin recuperación por correo: el Jefe de laboratorio asigna la contraseña
+        // desde el CRUD de usuarios (13/11/2026).
         /* @chisel-2fa */
         Features::twoFactorAuthentication([
             'confirm' => true,

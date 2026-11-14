@@ -46,13 +46,13 @@ import {
 type Tratamiento = {
     id: number;
     nombre: string;
-    levadura: string | null;
-    duracion: string | null;
     temperatura: string | null;
     /** null en los tratamientos creados sin estos datos */
     variedad: string | null;
     lote: string | null;
     fecha_inicio: string;
+    fecha_fin: string | null;
+    duracion_dias: number | null;
     estado: 'abierto' | 'cerrado';
     responsable: string;
     productor: string | null;
@@ -193,12 +193,6 @@ export default function DetalleTratamiento({
 
                 <Seccion titulo="Información del tratamiento">
                     <div className="grid gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 text-sm shadow-sm sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-                        {t.levadura && (
-                            <Dato titulo="Levadura" valor={t.levadura} />
-                        )}
-                        {t.duracion && (
-                            <Dato titulo="Duración" valor={t.duracion} />
-                        )}
                         {t.temperatura && (
                             <Dato titulo="Temperatura" valor={t.temperatura} />
                         )}
@@ -210,6 +204,18 @@ export default function DetalleTratamiento({
                             titulo="Inicio"
                             valor={formatoDia.format(new Date(t.fecha_inicio))}
                         />
+                        {t.fecha_fin && (
+                            <Dato
+                                titulo="Término"
+                                valor={formatoDia.format(new Date(t.fecha_fin))}
+                            />
+                        )}
+                        {t.duracion_dias !== null && (
+                            <Dato
+                                titulo="Duración"
+                                valor={`${t.duracion_dias} ${t.duracion_dias === 1 ? 'día' : 'días'}`}
+                            />
+                        )}
                         <Dato titulo="Responsable" valor={t.responsable} />
                         {t.productor && (
                             <Dato titulo="Productor" valor={t.productor} />
