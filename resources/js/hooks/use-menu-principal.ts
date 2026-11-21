@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { dashboard } from '@/routes';
 import { create as escanear } from '@/routes/escaneo';
-import { usuarios } from '@/routes/jefe';
+import { index as usuarios } from '@/routes/jefe/usuarios';
 import { index as tratamientos } from '@/routes/laboratorio/tratamientos';
 import { resultados } from '@/routes/productor';
 import type { NavItem, Rol } from '@/types';

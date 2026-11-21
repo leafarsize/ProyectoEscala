@@ -6,10 +6,13 @@ import {
     Plus,
     RotateCcw,
     ScanLine,
+    Smartphone,
     X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, ReactNode } from 'react';
+import { toast } from 'sonner';
+import { NivelBadge } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -26,7 +29,9 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { VisorCamara } from '@/components/visor-camara';
 import { reducirImagen } from '@/lib/reducir-imagen';
+import { reproducirSonidoExito, reproducirSonidoFallo } from '@/lib/sonidos';
 import { cn } from '@/lib/utils';
 import { analizar, create } from '@/routes/escaneo';
 import { show as verTratamiento } from '@/routes/laboratorio/tratamientos';
@@ -51,26 +56,37 @@ type Resultado = {
 type TratamientoOpcion = {
     id: number;
     nombre: string;
-    variedad: string;
-    lote: string;
+    /** null en los tratamientos creados después de quitarlos del formulario */
+    variedad: string | null;
+    lote: string | null;
     escaneos: number;
 };
-
-type Productor = { id: number; name: string };
 
 type DatosEscaneo = {
     imagen: File | null;
     tratamiento_id: string;
     nombre: string;
-    variedad: string;
-    lote: string;
-    productor_id: string;
+    temperatura: string;
+    /** Inicio y fin de la incubación (AAAA-MM-DD), elegidos en el calendario */
+    fecha_inicio: string;
+    fecha_fin: string;
+    /** Identifica el tallo de la foto dentro del tratamiento */
+    numero_cana: string;
 };
 
 type Modo = 'nuevo' | 'existente';
 
+/** Condiciones de incubación (config/escala.php) y sus valores por defecto */
+type Condiciones = {
+    temperaturas: string[];
+    temperatura: string;
+    /** Hoy */
+    fecha_inicio: string;
+    /** Hoy + dias_por_defecto, solo como propuesta */
+    fecha_fin: string;
+};
+
 const FORMATOS = 'image/jpeg,image/png,image/webp';
-const SIN_PRODUCTOR = 'ninguno';
 
 export default function Escanear({
     maxKb,
@@ -78,22 +94,23 @@ export default function Escanear({
     puedeGuardar,
     tratamientos,
     tratamientoInicial,
-    productores,
+    condiciones,
 }: {
     maxKb: number;
     niveles: Nivel[];
     puedeGuardar: boolean;
     tratamientos: TratamientoOpcion[];
     tratamientoInicial: number | null;
-    productores: Productor[];
+    condiciones: Condiciones;
 }) {
     const http = useHttp<DatosEscaneo, Resultado>({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
-        variedad: '',
-        lote: '',
-        productor_id: '',
+        temperatura: condiciones.temperatura,
+        fecha_inicio: condiciones.fecha_inicio,
+        fecha_fin: condiciones.fecha_fin,
+        numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
         tratamientoInicial ? 'existente' : 'nuevo',
@@ -101,10 +118,37 @@ export default function Escanear({
     const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Resultado | null>(null);
     const [errorServidor, setErrorServidor] = useState<string | null>(null);
+    const [visorCamaraAbierto, setVisorCamaraAbierto] = useState(false);
+
+    // Escuchar aperturas solicitadas desde el menú móvil o parámetro de URL
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('abrir_camara') === '1') {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('abrir_camara');
+                window.history.replaceState({}, '', url.toString());
+                setVisorCamaraAbierto(true);
+            }
+
+            const alAbrirCamara = () => setVisorCamaraAbierto(true);
+            window.addEventListener('abrir-camara-visor', alAbrirCamara);
+
+            return () => {
+                window.removeEventListener('abrir-camara-visor', alAbrirCamara);
+            };
+        }
+    }, []);
 
     const cambiarModo = (nuevo: Modo) => {
         setModo(nuevo);
-        http.clearErrors('tratamiento_id', 'nombre', 'variedad', 'lote');
+        http.clearErrors(
+            'tratamiento_id',
+            'nombre',
+            'temperatura',
+            'fecha_inicio',
+            'fecha_fin',
+        );
         // En un tratamiento nuevo no se envía tratamiento_id
         if (nuevo === 'nuevo') {
             http.setData('tratamiento_id', '');
@@ -126,27 +170,37 @@ export default function Escanear({
         http.clearErrors();
 
         if (!original.type.startsWith('image/')) {
-            http.setError(
-                'imagen',
-                'Formato no válido. Usa una imagen JPG, PNG o WEBP.',
-            );
+            const mensaje =
+                'Formato no válido. Usa una imagen JPG, PNG o WEBP.';
+            http.setError('imagen', mensaje);
+            toast.error(mensaje);
+            reproducirSonidoFallo();
 
             return;
         }
 
-        const archivo = await reducirImagen(original);
+        try {
+            const archivo = await reducirImagen(original);
 
-        if (archivo.size > maxKb * 1024) {
-            http.setError(
-                'imagen',
-                'La imagen supera el tamaño máximo de 10 MB.',
-            );
+            if (archivo.size > maxKb * 1024) {
+                const mensaje = 'La imagen supera el tamaño máximo de 10 MB.';
+                http.setError('imagen', mensaje);
+                toast.error(mensaje);
+                reproducirSonidoFallo();
 
-            return;
+                return;
+            }
+
+            http.setData('imagen', archivo);
+            setVistaPrevia(URL.createObjectURL(archivo));
+            toast.success('Imagen cargada con éxito');
+            reproducirSonidoExito();
+        } catch {
+            const mensaje = 'No se pudo cargar la imagen seleccionada.';
+            http.setError('imagen', mensaje);
+            toast.error(mensaje);
+            reproducirSonidoFallo();
         }
-
-        http.setData('imagen', archivo);
-        setVistaPrevia(URL.createObjectURL(archivo));
     };
 
     const quitarFoto = () => {
@@ -171,6 +225,8 @@ export default function Escanear({
                 ...http.data,
                 imagen: null,
                 tratamiento_id: String(tratamiento.id),
+                // El siguiente escaneo es otro tallo
+                numero_cana: '',
             });
             setModo('existente');
         } else {
@@ -178,9 +234,10 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: '',
                 nombre: '',
-                variedad: '',
-                lote: '',
-                productor_id: '',
+                temperatura: condiciones.temperatura,
+                fecha_inicio: condiciones.fecha_inicio,
+                fecha_fin: condiciones.fecha_fin,
+                numero_cana: '',
             });
             setModo('nuevo');
         }
@@ -208,6 +265,7 @@ export default function Escanear({
                 }
             }
         } catch (error) {
+            reproducirSonidoFallo();
             // Se conserva la foto para poder reintentar
             const estado = (error as { response?: { status: number } }).response
                 ?.status;
@@ -230,6 +288,7 @@ export default function Escanear({
 
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-6 md:py-8">
                 <Heading
+                    as="h1"
                     title="Escanear tallo"
                     description="Obtén el porcentaje de daño y el nivel de severidad de un tallo de caña."
                 />
@@ -254,7 +313,7 @@ export default function Escanear({
                                 }}
                                 errores={http.errors}
                                 tratamientos={tratamientos}
-                                productores={productores}
+                                condiciones={condiciones}
                                 deshabilitado={http.processing}
                             />
                         )}
@@ -265,9 +324,18 @@ export default function Escanear({
                                         src={vistaPrevia}
                                         analizando={http.processing}
                                         onQuitar={quitarFoto}
+                                        onFoto={elegirFoto}
+                                        onAbrirCamara={() =>
+                                            setVisorCamaraAbierto(true)
+                                        }
                                     />
                                 ) : (
-                                    <ZonaFoto onFoto={elegirFoto} />
+                                    <ZonaFoto
+                                        onFoto={elegirFoto}
+                                        onAbrirCamara={() =>
+                                            setVisorCamaraAbierto(true)
+                                        }
+                                    />
                                 )}
 
                                 <InputError message={http.errors.imagen} />
@@ -303,6 +371,16 @@ export default function Escanear({
                     </>
                 )}
             </div>
+
+            {visorCamaraAbierto && (
+                <VisorCamara
+                    onFoto={(archivo) => {
+                        setVisorCamaraAbierto(false);
+                        void elegirFoto(archivo);
+                    }}
+                    onCerrar={() => setVisorCamaraAbierto(false)}
+                />
+            )}
         </>
     );
 }
@@ -314,7 +392,7 @@ function SeccionTratamiento({
     onCambio,
     errores,
     tratamientos,
-    productores,
+    condiciones,
     deshabilitado,
 }: {
     modo: Modo;
@@ -326,7 +404,7 @@ function SeccionTratamiento({
     ) => void;
     errores: Partial<Record<keyof DatosEscaneo, string>>;
     tratamientos: TratamientoOpcion[];
-    productores: Productor[];
+    condiciones: Condiciones;
     deshabilitado: boolean;
 }) {
     return (
@@ -365,100 +443,73 @@ function SeccionTratamiento({
                         <p className="text-sm text-muted-foreground">
                             Este escaneo inicia un tratamiento nuevo.
                         </p>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Campo
+                        <Campo
+                            id="nombre"
+                            etiqueta="Nombre del tratamiento"
+                            error={errores.nombre}
+                        >
+                            <Input
                                 id="nombre"
-                                etiqueta="Nombre del tratamiento"
-                                error={errores.nombre}
-                                className="sm:col-span-2"
-                            >
-                                <Input
-                                    id="nombre"
-                                    value={datos.nombre}
-                                    maxLength={255}
-                                    disabled={deshabilitado}
-                                    placeholder="Ej. Bioformulación M. guilliermondii"
-                                    onChange={(e) =>
-                                        onCambio('nombre', e.target.value)
-                                    }
-                                />
-                            </Campo>
+                                placeholder="Ej. M. guilliermondii lote 3, o Testigo"
+                                value={datos.nombre}
+                                maxLength={255}
+                                disabled={deshabilitado}
+                                onChange={(e) =>
+                                    onCambio('nombre', e.target.value)
+                                }
+                            />
+                        </Campo>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Campo
-                                id="variedad"
-                                etiqueta="Variedad de caña"
-                                error={errores.variedad}
+                                id="fecha_inicio"
+                                etiqueta="Fecha de inicio"
+                                error={errores.fecha_inicio}
                             >
                                 <Input
-                                    id="variedad"
-                                    value={datos.variedad}
-                                    maxLength={100}
+                                    id="fecha_inicio"
+                                    type="date"
+                                    value={datos.fecha_inicio}
                                     disabled={deshabilitado}
-                                    placeholder="Ej. CP 72-2086"
                                     onChange={(e) =>
-                                        onCambio('variedad', e.target.value)
+                                        onCambio('fecha_inicio', e.target.value)
                                     }
                                 />
                             </Campo>
+
                             <Campo
-                                id="lote"
-                                etiqueta="Lote o parcela"
-                                error={errores.lote}
+                                id="fecha_fin"
+                                etiqueta="Fecha de término"
+                                error={errores.fecha_fin}
                             >
                                 <Input
-                                    id="lote"
-                                    value={datos.lote}
-                                    maxLength={100}
+                                    id="fecha_fin"
+                                    type="date"
+                                    min={datos.fecha_inicio || undefined}
+                                    value={datos.fecha_fin}
                                     disabled={deshabilitado}
-                                    placeholder="Ej. Lote 3"
                                     onChange={(e) =>
-                                        onCambio('lote', e.target.value)
+                                        onCambio('fecha_fin', e.target.value)
                                     }
                                 />
                             </Campo>
-                            {productores.length > 0 && (
-                                <Campo
-                                    id="productor"
-                                    etiqueta="Productor (opcional)"
-                                    error={errores.productor_id}
-                                    className="sm:col-span-2"
-                                >
-                                    <Select
-                                        value={
-                                            datos.productor_id || SIN_PRODUCTOR
-                                        }
-                                        disabled={deshabilitado}
-                                        onValueChange={(valor) =>
-                                            onCambio(
-                                                'productor_id',
-                                                valor === SIN_PRODUCTOR
-                                                    ? ''
-                                                    : valor,
-                                            )
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="productor"
-                                            className="w-full"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={SIN_PRODUCTOR}>
-                                                Sin productor
-                                            </SelectItem>
-                                            {productores.map((p) => (
-                                                <SelectItem
-                                                    key={p.id}
-                                                    value={String(p.id)}
-                                                >
-                                                    {p.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </Campo>
-                            )}
                         </div>
+
+                        <Campo
+                            id="temperatura"
+                            etiqueta="Temperatura"
+                            error={errores.temperatura}
+                        >
+                            <ListaOpciones
+                                id="temperatura"
+                                valor={datos.temperatura}
+                                opciones={condiciones.temperaturas}
+                                deshabilitado={deshabilitado}
+                                onCambio={(valor) =>
+                                    onCambio('temperatura', valor)
+                                }
+                            />
+                        </Campo>
                     </>
                 ) : (
                     <Campo
@@ -479,8 +530,10 @@ function SeccionTratamiento({
                             <SelectContent>
                                 {tratamientos.map((t) => (
                                     <SelectItem key={t.id} value={String(t.id)}>
-                                        {t.nombre} · {t.variedad} · {t.lote} (
-                                        {t.escaneos}{' '}
+                                        {[t.nombre, t.variedad, t.lote]
+                                            .filter(Boolean)
+                                            .join(' · ')}{' '}
+                                        ({t.escaneos}{' '}
                                         {t.escaneos === 1
                                             ? 'escaneo'
                                             : 'escaneos'}
@@ -491,8 +544,61 @@ function SeccionTratamiento({
                         </Select>
                     </Campo>
                 )}
+
+                {/* Cada foto es un tallo distinto, así que se pide en los dos modos */}
+                <Campo
+                    id="numero_cana"
+                    etiqueta="Número de caña"
+                    error={errores.numero_cana}
+                >
+                    <Input
+                        id="numero_cana"
+                        value={datos.numero_cana}
+                        maxLength={50}
+                        disabled={deshabilitado}
+                        onChange={(e) =>
+                            onCambio('numero_cana', e.target.value)
+                        }
+                    />
+                </Campo>
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * Lista desplegable con valores fijos (config/escala.php).
+ */
+function ListaOpciones({
+    id,
+    valor,
+    opciones,
+    deshabilitado,
+    onCambio,
+}: {
+    id: string;
+    valor: string;
+    opciones: string[];
+    deshabilitado: boolean;
+    onCambio: (valor: string) => void;
+}) {
+    return (
+        <Select
+            value={valor || undefined}
+            disabled={deshabilitado}
+            onValueChange={onCambio}
+        >
+            <SelectTrigger id={id} className="w-full">
+                <SelectValue placeholder="Elige una opción" />
+            </SelectTrigger>
+            <SelectContent>
+                {opciones.map((opcion) => (
+                    <SelectItem key={opcion} value={opcion}>
+                        {opcion}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 }
 
@@ -518,8 +624,15 @@ function Campo({
     );
 }
 
-function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
+function ZonaFoto({
+    onFoto,
+    onAbrirCamara,
+}: {
+    onFoto: (archivo: File) => void;
+    onAbrirCamara: () => void;
+}) {
     const [arrastrando, setArrastrando] = useState(false);
+    const inputNativaDirectoRef = useRef<HTMLInputElement>(null);
 
     const alSeleccionar = (e: ChangeEvent<HTMLInputElement>) => {
         const archivo = e.target.files?.[0];
@@ -542,7 +655,43 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
     };
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
+            {/* Opciones de captura: Visor con marco guía o Cámara nativa.
+                En PC no aparecen: ahí solo se sube un archivo (ver variante "movil"). */}
+            <div className="hidden grid-cols-1 gap-2.5 sm:grid-cols-2 movil:grid">
+                <Button
+                    type="button"
+                    size="lg"
+                    onClick={onAbrirCamara}
+                    className="h-16 w-full rounded-xl font-semibold"
+                >
+                    <Camera className="size-5" />
+                    Abrir cámara con marco
+                </Button>
+
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => inputNativaDirectoRef.current?.click()}
+                    className="h-16 w-full rounded-xl"
+                >
+                    <Smartphone className="size-5" />
+                    Cámara del celular
+                </Button>
+            </div>
+
+            {/* Input para cámara nativa del sistema */}
+            <input
+                ref={inputNativaDirectoRef}
+                type="file"
+                accept={FORMATOS}
+                capture="environment"
+                onChange={alSeleccionar}
+                className="sr-only"
+            />
+
+            {/* Zona para elegir archivo o arrastrar */}
             <label
                 onDragOver={(e) => {
                     e.preventDefault();
@@ -551,23 +700,22 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
                 onDragLeave={() => setArrastrando(false)}
                 onDrop={alSoltar}
                 className={cn(
-                    'flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 text-center transition-colors',
+                    'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors',
                     'focus-within:ring-[3px] focus-within:ring-ring/50 hover:bg-muted/50',
                     arrastrando
                         ? 'border-foreground bg-muted/50'
                         : 'border-muted-foreground/25',
                 )}
             >
-                <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                    <ImageUp className="size-5 text-muted-foreground" />
+                <span className="inline-flex min-h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground movil:bg-muted movil:text-foreground">
+                    <ImageUp className="size-4" />
+                    Subir imagen
                 </span>
-                <span className="flex flex-col gap-1">
-                    <span className="font-medium">
-                        Arrastra la foto aquí o haz clic para elegirla
+                <span className="text-xs text-muted-foreground">
+                    <span className="movil:hidden">
+                        Arrastra una imagen aquí ·{' '}
                     </span>
-                    <span className="text-sm text-muted-foreground">
-                        JPG, PNG o WEBP
-                    </span>
+                    JPG, PNG o WEBP
                 </span>
                 <input
                     type="file"
@@ -577,23 +725,9 @@ function ZonaFoto({ onFoto }: { onFoto: (archivo: File) => void }) {
                 />
             </label>
 
-            <Button variant="outline" size="lg" asChild>
-                <label className="cursor-pointer focus-within:ring-[3px] focus-within:ring-ring/50">
-                    <Camera />
-                    Tomar foto
-                    <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={alSeleccionar}
-                        className="sr-only"
-                    />
-                </label>
-            </Button>
-
             <p className="text-center text-xs text-muted-foreground">
-                Para mejores resultados: fondo blanco liso, a unos 30 cm, con
-                buena luz y sin sombras.
+                Recomendación: corte longitudinal de entrenudo de 10 × 15 cm a
+                30 cm de distancia sobre fondo blanco liso.
             </p>
         </div>
     );
@@ -603,38 +737,111 @@ function VistaPrevia({
     src,
     analizando,
     onQuitar,
+    onFoto,
+    onAbrirCamara,
 }: {
     src: string;
     analizando: boolean;
     onQuitar: () => void;
+    onFoto: (archivo: File) => void;
+    onAbrirCamara: () => void;
 }) {
+    const inputNativaRef = useRef<HTMLInputElement>(null);
+    const inputGaleriaRef = useRef<HTMLInputElement>(null);
+
+    const alSeleccionar = (e: ChangeEvent<HTMLInputElement>) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo
+
+        if (archivo) {
+            onFoto(archivo);
+        }
+    };
+
     return (
-        <div className="relative overflow-hidden rounded-xl bg-muted">
-            <img
-                src={src}
-                alt="Vista previa del tallo"
-                className={cn(
-                    'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
-                    analizando && 'opacity-40',
+        <div className="flex flex-col gap-3">
+            <div className="relative overflow-hidden rounded-xl bg-muted">
+                <img
+                    src={src}
+                    alt="Vista previa del tallo"
+                    className={cn(
+                        'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
+                        analizando && 'opacity-40',
+                    )}
+                />
+
+                {analizando ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
+                        <Spinner className="size-6" />
+                        Analizando tallo…
+                    </div>
+                ) : (
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onQuitar}
+                        className="absolute top-3 right-3 shadow-sm"
+                    >
+                        <X />
+                        Quitar
+                    </Button>
                 )}
+            </div>
+
+            {/* Si la foto salió mal, se corrige aquí mismo sin perder el tratamiento */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+                {/* Las dos opciones de cámara solo en teléfono o tableta.
+                    "contents" deja que los botones sigan siendo hijos del flex. */}
+                <div className="hidden movil:contents">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={analizando}
+                        onClick={onAbrirCamara}
+                        className="sm:flex-1"
+                    >
+                        <RotateCcw />
+                        Volver a tomar
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={analizando}
+                        onClick={() => inputNativaRef.current?.click()}
+                        className="sm:flex-1"
+                    >
+                        <Smartphone />
+                        Cámara del celular
+                    </Button>
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={analizando}
+                    onClick={() => inputGaleriaRef.current?.click()}
+                    className="sm:flex-1"
+                >
+                    <ImageUp />
+                    Elegir otra foto
+                </Button>
+            </div>
+
+            <input
+                ref={inputNativaRef}
+                type="file"
+                accept={FORMATOS}
+                capture="environment"
+                onChange={alSeleccionar}
+                className="sr-only"
             />
 
-            {analizando ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
-                    <Spinner className="size-6" />
-                    Analizando tallo…
-                </div>
-            ) : (
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={onQuitar}
-                    className="absolute top-3 right-3 shadow-sm"
-                >
-                    <X />
-                    Cambiar
-                </Button>
-            )}
+            <input
+                ref={inputGaleriaRef}
+                type="file"
+                accept={FORMATOS}
+                onChange={alSeleccionar}
+                className="sr-only"
+            />
         </div>
     );
 }
@@ -660,13 +867,14 @@ function VistaResultado({
                     <Medidor porcentaje={resultado.porcentaje} />
 
                     <div className="flex w-full flex-col gap-4 text-center sm:text-left">
-                        <div className="flex flex-col gap-1">
-                            <p className="text-sm text-muted-foreground">
-                                Nivel {resultado.nivel} de {ultimoNivel}
-                            </p>
-                            <p className="text-2xl font-semibold tracking-tight">
+                        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                            <p className="text-base font-semibold">
                                 {resultado.etiqueta}
                             </p>
+                            <NivelBadge
+                                nivel={resultado.nivel}
+                                ultimoNivel={ultimoNivel}
+                            />
                         </div>
 
                         <EscalaSeveridad
@@ -859,13 +1067,6 @@ function EscalaSeveridad({
                     );
                 })}
             </ol>
-            <p className="text-xs text-muted-foreground">
-                {niveles
-                    .filter((_, i) => i === 0 || i === niveles.length - 1)
-                    .map((n) => `${n.nivel} = ${n.etiqueta}`)
-                    .join('  ')}{' '}
-                rangos provisionales
-            </p>
         </div>
     );
 }

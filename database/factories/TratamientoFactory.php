@@ -21,9 +21,12 @@ class TratamientoFactory extends Factory
         return [
             'usuario_id' => User::factory(),
             'nombre' => 'Ensayo '.fake()->unique()->numberBetween(1, 9999),
+            'temperatura' => fake()->randomElement(config('escala.temperaturas')),
             'variedad' => fake()->randomElement(['CP 72-2086', 'Mex 69-290', 'ITV 92-1424']),
             'lote' => 'Lote '.fake()->numberBetween(1, 40),
             'fecha_inicio' => now()->toDateString(),
+            // Fin de la incubación: cada ensayo puede durar algo distinto
+            'fecha_fin' => now()->addDays(fake()->numberBetween(7, 30))->toDateString(),
             'estado' => Tratamiento::ABIERTO,
         ];
     }

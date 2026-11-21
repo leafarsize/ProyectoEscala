@@ -1,7 +1,15 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowRight, ScanLine, Trash2, Undo2 } from 'lucide-react';
+import { Form, Head, Link, router } from '@inertiajs/react';
+import {
+    ArrowRight,
+    FileSpreadsheet,
+    Pencil,
+    ScanLine,
+    Trash2,
+    Undo2,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import TratamientoController from '@/actions/App/Http/Controllers/TratamientoController';
 import {
     DetalleEscaneo,
     formatoDia,
@@ -10,6 +18,7 @@ import {
 } from '@/components/escaneo-detalle';
 import type { EscaneoVista } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
 import { Seccion } from '@/components/seccion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,35 +33,56 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { create } from '@/routes/escaneo';
-import { destroy, index } from '@/routes/laboratorio/tratamientos';
+import { destroy as destroyEscaneo } from '@/routes/laboratorio/escaneos';
+import {
+    destroy,
+    exportarDetalle,
+    index,
+} from '@/routes/laboratorio/tratamientos';
 
 type Tratamiento = {
     id: number;
     nombre: string;
-    variedad: string;
-    lote: string;
+    temperatura: string | null;
+    /** null en los tratamientos creados sin estos datos */
+    variedad: string | null;
+    lote: string | null;
     fecha_inicio: string;
+    fecha_fin: string | null;
+    duracion_dias: number | null;
     estado: 'abierto' | 'cerrado';
     responsable: string;
     productor: string | null;
     notas: string | null;
     puede_agregar: boolean;
+    puede_editar: boolean;
     puede_eliminar: boolean;
 };
+
+const clasesCampo =
+    'w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 export default function DetalleTratamiento({
     tratamiento: t,
     escaneos,
     ultimoNivel,
+    temperaturas = [],
 }: {
     tratamiento: Tratamiento;
     escaneos: EscaneoVista[];
     ultimoNivel: number;
+    /** Opciones del formulario de edición (vacías si no se puede editar) */
+    temperaturas?: string[];
 }) {
     const [abierto, setAbierto] = useState<number | null>(null);
+    const [editando, setEditando] = useState(false);
+    // Índice del escaneo que se está por descartar, para confirmar antes de borrarlo
+    const [porDescartar, setPorDescartar] = useState<number | null>(null);
     const inicial = escaneos[0];
     const ultimo = escaneos[escaneos.length - 1];
     const cambio =
@@ -77,7 +107,7 @@ export default function DetalleTratamiento({
 
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-3">
-                        <Heading title={t.nombre} />
+                        <Heading as="h1" title={t.nombre} />
                         <Badge
                             className={cn(
                                 'rounded-full border-transparent',
@@ -91,6 +121,19 @@ export default function DetalleTratamiento({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                        {escaneos.length > 0 && (
+                            <Button variant="outline" asChild>
+                                <a
+                                    href={exportarDetalle.url({
+                                        tratamiento: t.id,
+                                    })}
+                                    download
+                                >
+                                    <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+                                    Exportar a Excel
+                                </a>
+                            </Button>
+                        )}
                         {t.puede_agregar && (
                             <Button asChild>
                                 <Link
@@ -101,6 +144,15 @@ export default function DetalleTratamiento({
                                     <ScanLine />
                                     Agregar escaneo
                                 </Link>
+                            </Button>
+                        )}
+                        {t.puede_editar && (
+                            <Button
+                                variant="outline"
+                                onClick={() => setEditando(true)}
+                            >
+                                <Pencil className="size-4" />
+                                Editar
                             </Button>
                         )}
                         {t.puede_eliminar && (
@@ -115,12 +167,29 @@ export default function DetalleTratamiento({
 
                 <Seccion titulo="Información del tratamiento">
                     <div className="grid gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 text-sm shadow-sm sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
-                        <Dato titulo="Variedad" valor={t.variedad} />
-                        <Dato titulo="Lote" valor={t.lote} />
+                        {t.temperatura && (
+                            <Dato titulo="Temperatura" valor={t.temperatura} />
+                        )}
+                        {t.variedad && (
+                            <Dato titulo="Variedad" valor={t.variedad} />
+                        )}
+                        {t.lote && <Dato titulo="Lote" valor={t.lote} />}
                         <Dato
                             titulo="Inicio"
                             valor={formatoDia.format(new Date(t.fecha_inicio))}
                         />
+                        {t.fecha_fin && (
+                            <Dato
+                                titulo="Término"
+                                valor={formatoDia.format(new Date(t.fecha_fin))}
+                            />
+                        )}
+                        {t.duracion_dias !== null && (
+                            <Dato
+                                titulo="Duración"
+                                valor={`${t.duracion_dias} ${t.duracion_dias === 1 ? 'día' : 'días'}`}
+                            />
+                        )}
                         <Dato titulo="Responsable" valor={t.responsable} />
                         {t.productor && (
                             <Dato titulo="Productor" valor={t.productor} />
@@ -181,6 +250,11 @@ export default function DetalleTratamiento({
                                         numero={i + 1}
                                         ultimoNivel={ultimoNivel}
                                         onAbrir={() => setAbierto(i)}
+                                        onDescartar={
+                                            e.puede_eliminar
+                                                ? () => setPorDescartar(i)
+                                                : undefined
+                                        }
                                     />
                                 </li>
                             ))}
@@ -196,8 +270,262 @@ export default function DetalleTratamiento({
                 }
                 ultimoNivel={ultimoNivel}
                 onCerrar={() => setAbierto(null)}
+                onEliminar={
+                    abierto !== null && escaneos[abierto]?.puede_eliminar
+                        ? () => {
+                              // Se cierra el detalle y se pide confirmación
+                              setPorDescartar(abierto);
+                              setAbierto(null);
+                          }
+                        : undefined
+                }
             />
+
+            <DescartarEscaneo
+                escaneo={
+                    porDescartar === null
+                        ? null
+                        : (escaneos[porDescartar] ?? null)
+                }
+                numero={porDescartar === null ? 0 : porDescartar + 1}
+                onCerrar={() => setPorDescartar(null)}
+            />
+
+            {t.puede_editar && (
+                <Dialog
+                    open={editando}
+                    onOpenChange={(abrir) => !abrir && setEditando(false)}
+                >
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+                        <FormularioTratamiento
+                            tratamiento={t}
+                            temperaturas={temperaturas}
+                            onCerrar={() => setEditando(false)}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
         </>
+    );
+}
+
+/**
+ * Formulario para corregir la ficha del tratamiento. Los escaneos no se tocan.
+ */
+function FormularioTratamiento({
+    tratamiento: t,
+    temperaturas,
+    onCerrar,
+}: {
+    tratamiento: Tratamiento;
+    temperaturas: string[];
+    onCerrar: () => void;
+}) {
+    return (
+        <>
+            <DialogHeader>
+                <DialogTitle>Editar tratamiento</DialogTitle>
+                <DialogDescription>
+                    Corrige los datos del ensayo. Los escaneos ya guardados no
+                    cambian; al cerrarlo deja de admitir escaneos nuevos.
+                </DialogDescription>
+            </DialogHeader>
+
+            <Form
+                {...TratamientoController.update.form(t.id)}
+                options={{ preserveScroll: true }}
+                onSuccess={onCerrar}
+                className="flex flex-col gap-5"
+            >
+                {({ processing, errors }) => (
+                    <>
+                        <div className="grid gap-2">
+                            <Label htmlFor="editar-nombre">
+                                Nombre del tratamiento
+                            </Label>
+                            <Input
+                                id="editar-nombre"
+                                name="nombre"
+                                defaultValue={t.nombre}
+                                maxLength={255}
+                                required
+                            />
+                            <InputError message={errors.nombre} />
+                        </div>
+
+                        <div className="grid gap-5 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-fecha-inicio">
+                                    Fecha de inicio
+                                </Label>
+                                <Input
+                                    id="editar-fecha-inicio"
+                                    name="fecha_inicio"
+                                    type="date"
+                                    defaultValue={t.fecha_inicio}
+                                    required
+                                />
+                                <InputError message={errors.fecha_inicio} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-fecha-fin">
+                                    Fecha de término
+                                </Label>
+                                <Input
+                                    id="editar-fecha-fin"
+                                    name="fecha_fin"
+                                    type="date"
+                                    min={t.fecha_inicio}
+                                    defaultValue={t.fecha_fin ?? ''}
+                                />
+                                <InputError message={errors.fecha_fin} />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-5 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-temperatura">
+                                    Temperatura
+                                </Label>
+                                <select
+                                    id="editar-temperatura"
+                                    name="temperatura"
+                                    defaultValue={t.temperatura ?? ''}
+                                    className={cn(clasesCampo, 'h-9')}
+                                >
+                                    <option value="">Sin especificar</option>
+                                    {temperaturas.map((temperatura) => (
+                                        <option
+                                            key={temperatura}
+                                            value={temperatura}
+                                        >
+                                            {temperatura}
+                                        </option>
+                                    ))}
+                                </select>
+                                <InputError message={errors.temperatura} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-estado">Estado</Label>
+                                <select
+                                    id="editar-estado"
+                                    name="estado"
+                                    defaultValue={t.estado}
+                                    required
+                                    className={cn(clasesCampo, 'h-9')}
+                                >
+                                    <option value="abierto">
+                                        Abierto (admite escaneos)
+                                    </option>
+                                    <option value="cerrado">
+                                        Cerrado (ya no admite escaneos)
+                                    </option>
+                                </select>
+                                <InputError message={errors.estado} />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="editar-notas">Notas</Label>
+                            <textarea
+                                id="editar-notas"
+                                name="notas"
+                                rows={3}
+                                maxLength={2000}
+                                defaultValue={t.notas ?? ''}
+                                placeholder="Observaciones del ensayo"
+                                className={cn(clasesCampo, 'py-2')}
+                            />
+                            <InputError message={errors.notas} />
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={onCerrar}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button type="submit" disabled={processing}>
+                                {processing && <Spinner />}
+                                Guardar cambios
+                            </Button>
+                        </DialogFooter>
+                    </>
+                )}
+            </Form>
+        </>
+    );
+}
+
+/**
+ * Confirmación para descartar un escaneo que no sirve (foto mal tomada, tallo repetido).
+ */
+function DescartarEscaneo({
+    escaneo,
+    numero,
+    onCerrar,
+}: {
+    escaneo: EscaneoVista | null;
+    numero: number;
+    onCerrar: () => void;
+}) {
+    const [procesando, setProcesando] = useState(false);
+
+    const eliminar = () => {
+        if (!escaneo) {
+            return;
+        }
+
+        router.delete(destroyEscaneo(escaneo.id).url, {
+            preserveScroll: true,
+            onStart: () => setProcesando(true),
+            onFinish: () => setProcesando(false),
+            onSuccess: onCerrar,
+        });
+    };
+
+    return (
+        <Dialog
+            open={escaneo !== null}
+            onOpenChange={(abierto) => !abierto && onCerrar()}
+        >
+            {escaneo && (
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            ¿Descartar el {nombreEscaneo(numero).toLowerCase()}?
+                        </DialogTitle>
+                        <DialogDescription>
+                            Se borran el resultado (
+                            {escaneo.porcentaje.toFixed(1)} % de daño) y las dos
+                            imágenes
+                            {escaneo.numero_cana
+                                ? ` de «${escaneo.numero_cana}»`
+                                : ''}
+                            . El resto del tratamiento no cambia y esta acción
+                            no se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            disabled={procesando}
+                            onClick={eliminar}
+                        >
+                            {procesando && <Spinner />}
+                            Descartar escaneo
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            )}
+        </Dialog>
     );
 }
 
@@ -285,30 +613,46 @@ function TarjetaEscaneo({
     numero,
     ultimoNivel,
     onAbrir,
+    onDescartar,
 }: {
     escaneo: EscaneoVista;
     numero: number;
     ultimoNivel: number;
     onAbrir: () => void;
+    /** Si se pasa, aparece el botón para descartar este escaneo */
+    onDescartar?: () => void;
 }) {
     return (
         <Card className="h-full gap-0 overflow-hidden py-0">
-            <button
-                type="button"
-                onClick={onAbrir}
-                className="relative block bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                aria-label={`Ver ${nombreEscaneo(numero)}`}
-            >
-                <img
-                    src={escaneo.imagen_resaltada}
-                    alt="Tallo con las lesiones resaltadas en rojo"
-                    loading="lazy"
-                    className="mx-auto h-48 w-full object-contain"
-                />
-                <span className="absolute top-2 left-2 rounded-md bg-background/90 px-2 py-0.5 text-xs font-medium shadow-sm">
-                    {nombreEscaneo(numero)}
-                </span>
-            </button>
+            {/* El botón de descartar va fuera del de abrir: no se pueden anidar */}
+            <div className="relative">
+                <button
+                    type="button"
+                    onClick={onAbrir}
+                    className="relative block bg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    aria-label={`Ver ${nombreEscaneo(numero)}`}
+                >
+                    <img
+                        src={escaneo.imagen_resaltada}
+                        alt="Tallo con las lesiones resaltadas en rojo"
+                        loading="lazy"
+                        className="mx-auto h-48 w-full object-contain"
+                    />
+                </button>
+
+                {onDescartar && (
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="absolute top-2 right-2 size-8 bg-background/90 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
+                        onClick={onDescartar}
+                        aria-label={`Descartar ${nombreEscaneo(numero)}`}
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                )}
+            </div>
 
             <CardContent className="flex flex-col gap-2 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -37,7 +37,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
 
     return (
         <>
-            <header className="sticky top-0 z-40 border-t-2 border-b border-t-tec-verde bg-card shadow-xs">
+            <header className="sticky top-0 z-40 border-b border-black/15 bg-tec-marino text-white shadow-xs">
                 <div className="mx-auto flex h-16 items-center gap-2 px-4 md:max-w-7xl">
                     {/* Menú en celular */}
                     <div className="lg:hidden">
@@ -46,6 +46,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="hover:bg-white/10 hover:text-white focus-visible:ring-white"
                                     aria-label="Abrir menú"
                                 >
                                     <Menu className="size-5" />
@@ -84,14 +85,14 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                         prefetch
                         className="flex items-center gap-3"
                     >
-                        <img
-                            src="/images/cana-escala.png"
-                            alt=""
-                            className="h-9 w-auto"
-                        />
-                        <span className="text-lg font-bold text-tec-marino dark:text-foreground">
-                            {name}
+                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white">
+                            <img
+                                src="/images/cana-escala.png"
+                                alt=""
+                                className="h-7 w-auto"
+                            />
                         </span>
+                        <span className="text-lg font-bold">{name}</span>
                     </Link>
 
                     {/* Menú en escritorio */}
@@ -100,15 +101,14 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             <Link
                                 key={item.title}
                                 href={item.href}
-                                className={cn(
-                                    'relative flex items-center px-4 text-sm text-slate-600 transition-colors hover:text-primary dark:text-slate-300',
-                                    isCurrentUrl(item.href) &&
-                                        'font-semibold text-primary dark:text-primary',
-                                )}
+                                aria-current={
+                                    isCurrentUrl(item.href) ? 'page' : undefined
+                                }
+                                className="relative flex items-center px-4 text-sm transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white aria-[current=page]:font-semibold"
                             >
                                 {item.title}
                                 {isCurrentUrl(item.href) && (
-                                    <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-tec-verde" />
+                                    <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-white" />
                                 )}
                             </Link>
                         ))}
@@ -118,7 +118,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="ghost"
-                                className="ml-auto size-11 rounded-full bg-accent p-0 hover:bg-accent/70 lg:ml-4"
+                                className="ml-auto size-11 rounded-full bg-white p-0 text-tec-marino hover:bg-white/90 hover:text-tec-marino focus-visible:ring-white lg:ml-4"
                                 aria-label="Menú de usuario"
                             >
                                 <Avatar className="size-11 overflow-hidden rounded-full">
@@ -126,7 +126,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                         src={auth.user?.avatar}
                                         alt={auth.user?.name}
                                     />
-                                    <AvatarFallback className="bg-accent text-primary">
+                                    <AvatarFallback className="bg-transparent">
                                         <UserRound className="size-6 fill-current" />
                                     </AvatarFallback>
                                 </Avatar>

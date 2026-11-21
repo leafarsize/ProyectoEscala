@@ -1,9 +1,12 @@
+import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -12,6 +15,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 /** Escaneo tal como lo envía Escaneo::paraVista() */
 export type EscaneoVista = {
     id: number;
+    /** null en los escaneos anteriores a que se pidiera el número de caña */
+    numero_cana: string | null;
     porcentaje: number;
     nivel: number;
     etiqueta: string;
@@ -19,6 +24,8 @@ export type EscaneoVista = {
     usuario: string;
     imagen_original: string;
     imagen_resaltada: string;
+    /** Solo lo envía el detalle del tratamiento, donde se puede descartar el escaneo */
+    puede_eliminar?: boolean;
 };
 
 export const formatoFecha = new Intl.DateTimeFormat('es-MX', {
@@ -55,19 +62,19 @@ export function NivelBadge({
     );
 }
 
-/**
- * Ventana con la foto del escaneo en grande y el cambio entre lesiones y original.
- */
 export function DetalleEscaneo({
     escaneo,
     titulo,
     ultimoNivel,
     onCerrar,
+    onEliminar,
 }: {
     escaneo: EscaneoVista | null;
     titulo?: string;
     ultimoNivel: number;
     onCerrar: () => void;
+    /** Si se pasa, se ofrece descartar el escaneo desde el detalle */
+    onEliminar?: () => void;
 }) {
     const [vista, setVista] = useState<'lesiones' | 'original'>('lesiones');
 
@@ -94,8 +101,13 @@ export function DetalleEscaneo({
                             />
                         </DialogTitle>
                         <DialogDescription>
-                            {formatoFecha.format(new Date(escaneo.fecha))} ·{' '}
-                            {escaneo.usuario}
+                            {[
+                                escaneo.numero_cana,
+                                formatoFecha.format(new Date(escaneo.fecha)),
+                                escaneo.usuario,
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -138,6 +150,20 @@ export function DetalleEscaneo({
                             className="mx-auto max-h-[60vh] w-full object-contain"
                         />
                     </div>
+
+                    {onEliminar && (
+                        <DialogFooter className="sm:justify-start">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={onEliminar}
+                            >
+                                <Trash2 />
+                                Descartar este escaneo
+                            </Button>
+                        </DialogFooter>
+                    )}
                 </DialogContent>
             )}
         </Dialog>

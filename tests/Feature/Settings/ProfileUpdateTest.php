@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Enums\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class ProfileUpdateTest extends TestCase
@@ -88,39 +89,21 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
-    public function test_user_can_delete_their_account()
+    /**
+     * Las cuentas las administra el Jefe de laboratorio: nadie borra la suya.
+     */
+    public function test_el_usuario_ya_no_puede_borrar_su_propia_cuenta()
     {
         $user = User::factory()->create();
 
-        $response = $this
-            ->actingAs($user)
-            ->delete(route('profile.destroy'), [
-                'password' => 'password',
-            ]);
+        // 405 y no 404: la dirección sigue existiendo para ver y guardar el perfil,
+        // pero ya no acepta DELETE
+        $this->actingAs($user)
+            ->delete('/settings/profile', ['password' => 'password'])
+            ->assertMethodNotAllowed();
 
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('home'));
-
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
-    }
-
-    public function test_correct_password_must_be_provided_to_delete_account()
-    {
-        $user = User::factory()->create();
-
-        $response = $this
-            ->actingAs($user)
-            ->from(route('profile.edit'))
-            ->delete(route('profile.destroy'), [
-                'password' => 'wrong-password',
-            ]);
-
-        $response
-            ->assertSessionHasErrors('password')
-            ->assertRedirect(route('profile.edit'));
-
+        $this->assertFalse(Route::has('profile.destroy'));
         $this->assertNotNull($user->fresh());
+        $this->assertAuthenticated();
     }
 }

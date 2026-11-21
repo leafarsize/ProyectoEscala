@@ -1,0 +1,578 @@
+import {
+    Camera,
+    Check,
+    ImageUp,
+    Info,
+    RotateCcw,
+    Smartphone,
+    SwitchCamera,
+    X,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+
+type Props = {
+    onFoto: (archivo: File) => void;
+    onCerrar: () => void;
+};
+
+type ModoDistancia = '30cm' | '20cm';
+
+export function VisorCamara({ onFoto, onCerrar }: Props) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const inputGaleriaRef = useRef<HTMLInputElement>(null);
+    const inputNativaRef = useRef<HTMLInputElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const isMountedRef = useRef<boolean>(true);
+
+    const [facingMode, setFacingMode] = useState<'environment' | 'user'>(
+        'environment',
+    );
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
+    const [distancia, setDistancia] = useState<ModoDistancia>('30cm');
+    // Foto recién tomada, a la espera de que la persona la acepte o la repita
+    const [capturada, setCapturada] = useState<{
+        archivo: File;
+        url: string;
+    } | null>(null);
+
+    // Liberar la URL temporal al repetir la foto, al aceptarla o al cerrar el visor
+    useEffect(() => {
+        return () => {
+            if (capturada) {
+                URL.revokeObjectURL(capturada.url);
+            }
+        };
+    }, [capturada]);
+
+    /** La foto no se entrega al instante: primero se revisa, por si salió mal. */
+    const revisar = (archivo: File) => {
+        setCapturada({ archivo, url: URL.createObjectURL(archivo) });
+    };
+
+    const repetir = () => setCapturada(null);
+
+    const usarFoto = () => {
+        if (!capturada) {
+            return;
+        }
+
+        detenerCamara();
+        onFoto(capturada.archivo);
+    };
+
+    const detenerCamara = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => {
+                try {
+                    track.stop();
+                } catch {
+                    // Ignorar errores al detener tracks
+                }
+            });
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+    };
+
+    const iniciarCamara = async (modo: 'environment' | 'user') => {
+        detenerCamara();
+        setCargando(true);
+        setError(null);
+        setErrorDetalle(null);
+
+        if (
+            typeof navigator === 'undefined' ||
+            !navigator.mediaDevices?.getUserMedia
+        ) {
+            setError(
+                'Tu navegador actual no soporta transmisión directa de cámara en este contexto.',
+            );
+            setErrorDetalle(
+                'Puedes usar directamente la cámara nativa de tu teléfono o subir una foto desde tus archivos.',
+            );
+            setCargando(false);
+            return;
+        }
+
+        // Probar progresivamente configuraciones de menor a mayor compatibilidad
+        const intentos: MediaStreamConstraints[] = [
+            // 1. Cámara trasera/frontal con resolución moderada adecuada para móviles
+            {
+                video: {
+                    facingMode: { ideal: modo },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+                audio: false,
+            },
+            // 2. Solo facingMode ideal sin restricciones de resolución
+            {
+                video: {
+                    facingMode: { ideal: modo },
+                },
+                audio: false,
+            },
+            // 3. FacingMode exacto si es posible
+            {
+                video: {
+                    facingMode: modo,
+                },
+                audio: false,
+            },
+            // 4. Cualquier cámara disponible (fallback definitivo)
+            {
+                video: true,
+                audio: false,
+            },
+        ];
+
+        let streamObtenido: MediaStream | null = null;
+        let ultimoError: unknown = null;
+
+        for (const config of intentos) {
+            try {
+                streamObtenido =
+                    await navigator.mediaDevices.getUserMedia(config);
+                if (streamObtenido) break;
+            } catch (err: unknown) {
+                ultimoError = err;
+                // Intentar la siguiente configuración de fallback
+            }
+        }
+
+        if (!isMountedRef.current) {
+            if (streamObtenido) {
+                streamObtenido.getTracks().forEach((t) => t.stop());
+            }
+            return;
+        }
+
+        if (!streamObtenido) {
+            const errObj = ultimoError as {
+                name?: string;
+                message?: string;
+            } | null;
+            const errName = errObj?.name || 'Error';
+            const errMsg =
+                errObj?.message || 'No fue posible abrir el sensor de cámara';
+
+            console.error('Error al solicitar cámara:', ultimoError);
+
+            if (
+                errName === 'NotAllowedError' ||
+                errName === 'PermissionDeniedError'
+            ) {
+                setError('Permiso de cámara denegado');
+                setErrorDetalle(
+                    'El navegador no tiene permiso para usar la cámara o fue cancelado. Puedes habilitarlo en los ajustes del sitio o usar la cámara nativa.',
+                );
+            } else if (
+                errName === 'NotReadableError' ||
+                errName === 'TrackStartError'
+            ) {
+                setError('La cámara está ocupada');
+                setErrorDetalle(
+                    'Otra aplicación (o pestaña) está utilizando la cámara de tu teléfono. Ciérrala y vuelve a intentar, o usa la cámara nativa.',
+                );
+            } else if (errName === 'OverconstrainedError') {
+                setError('Resolución de cámara no compatible');
+                setErrorDetalle(
+                    'El sensor de tu teléfono no aceptó la configuración solicitada.',
+                );
+            } else {
+                setError(`No se pudo conectar a la cámara (${errName})`);
+                setErrorDetalle(errMsg);
+            }
+
+            setCargando(false);
+            return;
+        }
+
+        streamRef.current = streamObtenido;
+
+        // Configurar el elemento de video de manera segura para navegadores móviles (iOS Safari / Android Chrome)
+        const video = videoRef.current;
+        if (video) {
+            video.srcObject = streamObtenido;
+            video.muted = true;
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('webkit-playsinline', 'true');
+
+            // En móviles, play() puede tardar o fallar si se llama antes de que existan metadatos
+            const reproducir = () => {
+                video
+                    .play()
+                    .catch((e) => {
+                        console.warn(
+                            'Reproducción diferida de video:',
+                            e?.message || e,
+                        );
+                    })
+                    .finally(() => {
+                        if (isMountedRef.current) {
+                            setCargando(false);
+                        }
+                    });
+            };
+
+            if (video.readyState >= 2) {
+                reproducir();
+            } else {
+                video.onloadedmetadata = () => {
+                    reproducir();
+                };
+            }
+        } else {
+            setCargando(false);
+        }
+    };
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        void iniciarCamara(facingMode);
+
+        return () => {
+            isMountedRef.current = false;
+            detenerCamara();
+        };
+    }, [facingMode]);
+
+    const cambiarCamara = () => {
+        setFacingMode((prev) =>
+            prev === 'environment' ? 'user' : 'environment',
+        );
+    };
+
+    const capturarFoto = () => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth || !video.videoHeight) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (facingMode === 'user') {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) return;
+                const archivo = new File([blob], `tallo_${Date.now()}.jpg`, {
+                    type: 'image/jpeg',
+                });
+                // La cámara sigue encendida: si repite la foto, el visor está listo
+                revisar(archivo);
+            },
+            'image/jpeg',
+            0.95,
+        );
+    };
+
+    const handleArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo
+
+        if (archivo) {
+            revisar(archivo);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+            {/* Barra superior de controles */}
+            <div className="relative z-20 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/50 to-transparent p-4">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                        detenerCamara();
+                        onCerrar();
+                    }}
+                    className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
+                    aria-label="Cerrar cámara"
+                >
+                    <X className="size-6" />
+                </Button>
+
+                {capturada ? (
+                    <>
+                        <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md">
+                            Revisar foto
+                        </span>
+                        {/* Hueco para que el botón de cerrar no se descentre */}
+                        <span aria-hidden="true" className="size-11" />
+                    </>
+                ) : (
+                    <>
+                        {/* Selector de distancia de toma */}
+                        <div className="flex items-center rounded-full bg-black/60 p-1 backdrop-blur-md">
+                            <button
+                                type="button"
+                                onClick={() => setDistancia('30cm')}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                    distancia === '30cm'
+                                        ? 'bg-primary text-white shadow'
+                                        : 'text-neutral-300 hover:text-white'
+                                }`}
+                            >
+                                ~30 cm (Normal)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDistancia('20cm')}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                    distancia === '20cm'
+                                        ? 'bg-primary text-white shadow'
+                                        : 'text-neutral-300 hover:text-white'
+                                }`}
+                            >
+                                ~20 cm (Cerca)
+                            </button>
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={cambiarCamara}
+                            className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
+                            aria-label="Cambiar cámara"
+                        >
+                            <SwitchCamera className="size-6" />
+                        </Button>
+                    </>
+                )}
+            </div>
+
+            {/* Contenedor del video con el marco guía de 10 cm de ancho por 15 cm de alto */}
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+                <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="absolute inset-0 h-full w-full object-cover"
+                />
+
+                {cargando && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/80">
+                        <Spinner className="size-9 text-primary" />
+                        <p className="text-sm font-medium text-neutral-200">
+                            Iniciando cámara…
+                        </p>
+                    </div>
+                )}
+
+                {capturada && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black">
+                        <img
+                            src={capturada.url}
+                            alt="Foto que acabas de tomar"
+                            className="h-full w-full object-contain"
+                        />
+                    </div>
+                )}
+
+                {error ? (
+                    <div className="relative z-20 mx-4 max-w-sm rounded-2xl border border-border bg-card p-6 text-center text-foreground shadow-2xl">
+                        <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                            <Info className="size-6" />
+                        </div>
+                        <h3 className="text-base font-bold">{error}</h3>
+                        {errorDetalle && (
+                            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                                {errorDetalle}
+                            </p>
+                        )}
+
+                        <div className="mt-5 flex flex-col gap-2.5">
+                            {/* Opción 1: Cámara oficial/nativa del teléfono */}
+                            <Button
+                                size="lg"
+                                className="w-full bg-primary font-bold text-primary-foreground shadow-md shadow-primary/25"
+                                onClick={() => inputNativaRef.current?.click()}
+                            >
+                                <Smartphone className="mr-2 size-5" />
+                                Abrir cámara de mi celular
+                            </Button>
+
+                            {/* Opción 2: Galería */}
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                className="w-full"
+                                onClick={() => inputGaleriaRef.current?.click()}
+                            >
+                                <ImageUp className="mr-2 size-4" />
+                                Elegir desde galería
+                            </Button>
+
+                            {/* Opción 3: Reintentar visor en vivo */}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-muted-foreground"
+                                onClick={() => iniciarCamara(facingMode)}
+                            >
+                                <RotateCcw className="mr-1.5 size-3.5" />
+                                Reintentar visor en vivo
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    /* Marco guía proporcional 10 de ancho × 15 de alto (aspecto 10/15 o 2/3) */
+                    <div className="pointer-events-none relative z-10 flex items-center justify-center">
+                        <div
+                            className="relative flex flex-col items-center justify-between rounded-2xl border-2 border-primary/95 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300"
+                            style={{
+                                width:
+                                    distancia === '30cm'
+                                        ? 'min(58vw, 220px)'
+                                        : 'min(76vw, 285px)',
+                                height:
+                                    distancia === '30cm'
+                                        ? 'min(87vw, 330px)'
+                                        : 'min(114vw, 428px)',
+                                aspectRatio: '10 / 15',
+                            }}
+                        >
+                            {/* Esquinas reforzadas estilo escáner profesional */}
+                            <span className="absolute -top-0.5 -left-0.5 size-7 rounded-tl-xl border-t-4 border-l-4 border-primary" />
+                            <span className="absolute -top-0.5 -right-0.5 size-7 rounded-tr-xl border-t-4 border-r-4 border-primary" />
+                            <span className="absolute -bottom-0.5 -left-0.5 size-7 rounded-bl-xl border-b-4 border-l-4 border-primary" />
+                            <span className="absolute -right-0.5 -bottom-0.5 size-7 rounded-br-xl border-r-4 border-b-4 border-primary" />
+
+                            {/* Cotas dimensionales (10 cm ancho × 15 cm alto) */}
+                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                ↔ 10 cm
+                            </div>
+                            <div className="absolute top-1/2 -left-7 -translate-y-1/2 -rotate-90 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold whitespace-nowrap text-primary">
+                                ↕ 15 cm
+                            </div>
+
+                            {/* Línea guía vertical central con marca de entrenudo */}
+                            <div className="absolute inset-y-6 left-1/2 w-px -translate-x-1/2 border-l border-dashed border-white/40" />
+
+                            {/* Silueta translúcida del tallo para dar referencia visual inmediata */}
+                            <div className="absolute inset-y-8 left-1/2 w-14 -translate-x-1/2 rounded-full border border-dashed border-primary/30 bg-primary/5" />
+
+                            {/* Etiquetas informativas dentro del marco */}
+                            <div className="mt-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold text-white shadow backdrop-blur-md">
+                                Tallo de caña (10 × 15 cm)
+                            </div>
+                            <div className="mb-3 rounded-full bg-black/70 px-3 py-1 text-[10px] font-medium text-white/95 shadow backdrop-blur-md">
+                                Distancia:{' '}
+                                {distancia === '30cm' ? '~30 cm' : '~20 cm'}{' '}
+                                sobre fondo claro
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Barra inferior: revisar la foto tomada o, si no hay, los disparadores */}
+            {capturada ? (
+                <div className="relative z-40 flex flex-col items-center gap-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 pt-4 pb-8">
+                    <p className="text-xs font-medium text-white/80">
+                        ¿Se ve bien el tallo completo y enfocado?
+                    </p>
+                    <div className="flex w-full max-w-md items-center gap-3">
+                        <Button
+                            type="button"
+                            size="lg"
+                            variant="secondary"
+                            onClick={repetir}
+                            className="h-12 flex-1 font-semibold"
+                        >
+                            <RotateCcw className="mr-2 size-5" />
+                            Volver a tomar
+                        </Button>
+                        <Button
+                            type="button"
+                            size="lg"
+                            onClick={usarFoto}
+                            className="h-12 flex-1 bg-primary font-bold text-primary-foreground shadow-md shadow-primary/25"
+                        >
+                            <Check className="mr-2 size-5" />
+                            Usar esta foto
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="relative z-20 flex items-center justify-around bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 pt-3 pb-8">
+                    {/* Opción 1: Abrir cámara nativa del sistema */}
+                    <button
+                        type="button"
+                        onClick={() => inputNativaRef.current?.click()}
+                        className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
+                        title="Usar app de cámara de tu celular"
+                    >
+                        <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
+                            <Smartphone className="size-5" />
+                        </span>
+                        <span className="text-[11px] font-medium">
+                            Cámara celular
+                        </span>
+                    </button>
+
+                    {/* Opción 2: Disparador central del visor en vivo */}
+                    <button
+                        type="button"
+                        disabled={cargando || !!error}
+                        onClick={capturarFoto}
+                        aria-label="Tomar foto con encuadre"
+                        className="group relative flex size-20 items-center justify-center rounded-full border-4 border-white p-1 transition-transform active:scale-95 disabled:opacity-40"
+                    >
+                        <span className="flex size-full items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 transition-colors group-hover:bg-primary/90">
+                            <Camera className="size-8" />
+                        </span>
+                    </button>
+
+                    {/* Opción 3: Galería */}
+                    <button
+                        type="button"
+                        onClick={() => inputGaleriaRef.current?.click()}
+                        className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
+                    >
+                        <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
+                            <ImageUp className="size-5" />
+                        </span>
+                        <span className="text-[11px] font-medium">Galería</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Input oculto para cámara nativa del celular (capture="environment") */}
+            <input
+                ref={inputNativaRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleArchivo}
+                className="sr-only"
+            />
+
+            {/* Input oculto para elegir foto de galería/archivos */}
+            <input
+                ref={inputGaleriaRef}
+                type="file"
+                accept="image/*"
+                onChange={handleArchivo}
+                className="sr-only"
+            />
+        </div>
+    );
+}

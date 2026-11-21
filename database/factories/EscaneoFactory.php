@@ -28,6 +28,7 @@ class EscaneoFactory extends Factory
         return [
             'usuario_id' => User::factory(),
             'tratamiento_id' => Tratamiento::factory(),
+            'numero_cana' => 'Caña '.fake()->numberBetween(1, 60),
             'imagen_original' => "escaneos/{$nombre}.png",
             'imagen_resaltada' => "escaneos/{$nombre}-resaltada.jpg",
             'porcentaje' => $porcentaje,

@@ -7,6 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -35,8 +36,13 @@ class AnalizarTalloRequest extends FormRequest
             'tratamiento_id' => ['nullable', 'integer', 'exists:tratamientos,id'],
             // …o el primero de un tratamiento nuevo
             'nombre' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:255'],
-            'variedad' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:100'],
-            'lote' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:100'],
+            // Solo los valores de config/escala.php, para que los tratamientos sean comparables
+            'temperatura' => ['nullable', Rule::in(Config::array('escala.temperaturas'))],
+            // Incubación: se eligen en el calendario. La duración en días se calcula con las dos.
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
+            // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
+            'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [
                 'nullable', 'integer',
                 Rule::exists('usuarios', 'id')->where('rol', Rol::Productor->value)->where('activo', true),
@@ -85,9 +91,12 @@ class AnalizarTalloRequest extends FormRequest
             'imagen.max' => 'La imagen supera el tamaño máximo de 10 MB.',
             'tratamiento_id.exists' => 'El tratamiento no existe.',
             'nombre.required_without' => 'Escribe el nombre del tratamiento.',
-            'variedad.required_without' => 'Escribe la variedad de caña.',
-            'lote.required_without' => 'Escribe el lote o parcela.',
+            'numero_cana.required' => 'Escribe el número de caña.',
             'productor_id.exists' => 'Elige un productor válido.',
+            'temperatura.in' => 'Elige una temperatura de la lista.',
+            'fecha_inicio.date' => 'Elige una fecha de inicio válida.',
+            'fecha_fin.date' => 'Elige una fecha de término válida.',
+            'fecha_fin.after_or_equal' => 'La fecha de término no puede ser anterior a la de inicio.',
         ];
     }
 }

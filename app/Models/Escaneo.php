@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $usuario_id
  * @property int|null $tratamiento_id
+ * @property string|null $numero_cana
  * @property string $imagen_original
  * @property string $imagen_resaltada
  * @property float $porcentaje
@@ -30,7 +31,7 @@ use Illuminate\Support\Carbon;
  */
 #[Table('escaneos')]
 #[Fillable([
-    'usuario_id', 'tratamiento_id', 'imagen_original', 'imagen_resaltada',
+    'usuario_id', 'tratamiento_id', 'numero_cana', 'imagen_original', 'imagen_resaltada',
     'porcentaje', 'nivel', 'etiqueta', 'area_tallo_px', 'area_lesion_px',
 ])]
 class Escaneo extends Model
@@ -66,12 +67,13 @@ class Escaneo extends Model
     /**
      * Datos para mostrar en la interfaz. Las imágenes se sirven por EscaneoController::imagen().
      *
-     * @return array{id: int, porcentaje: float, nivel: int, etiqueta: string, fecha: string|null, usuario: string, imagen_original: string, imagen_resaltada: string}
+     * @return array{id: int, numero_cana: string|null, porcentaje: float, nivel: int, etiqueta: string, fecha: string|null, usuario: string, imagen_original: string, imagen_resaltada: string}
      */
     public function paraVista(): array
     {
         return [
             'id' => $this->id,
+            'numero_cana' => $this->numero_cana,
             'porcentaje' => $this->porcentaje,
             'nivel' => $this->nivel,
             'etiqueta' => $this->etiqueta,

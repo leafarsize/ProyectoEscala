@@ -7,6 +7,7 @@ use App\Models\AccesoTratamiento;
 use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
+use Illuminate\Filesystem\LocalFilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
@@ -19,11 +20,13 @@ class TratamientosTest extends TestCase
 {
     use RefreshDatabase;
 
+    private LocalFilesystemAdapter $disco;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        Storage::fake('local');
+        $this->disco = Storage::fake('local');
     }
 
     private function fingirAnalisis(float $porcentaje = 21.47): void
@@ -45,6 +48,7 @@ class TratamientosTest extends TestCase
     {
         return $this->actingAs($usuario)->postJson(route('escaneo.analizar'), [
             'imagen' => UploadedFile::fake()->image('tallo.png', 400, 900),
+            'numero_cana' => 'Caña 1',
             ...$datos,
         ]);
     }
@@ -68,7 +72,7 @@ class TratamientosTest extends TestCase
         $productor = User::factory()->rol(Rol::Productor)->create();
 
         $this->escanear($laboratorista, [
-            'nombre' => 'Ensayo Fusarium', 'variedad' => 'CP 72-2086', 'lote' => 'Lote 3', 'productor_id' => $productor->id,
+            'nombre' => 'Ensayo Fusarium', 'numero_cana' => 'Caña 5', 'productor_id' => $productor->id,
         ])
             ->assertOk()
             ->assertJsonPath('tratamiento.nombre', 'Ensayo Fusarium')
@@ -77,17 +81,16 @@ class TratamientosTest extends TestCase
         $tratamiento = Tratamiento::sole();
         $this->assertSame($laboratorista->id, $tratamiento->usuario_id);
         $this->assertSame($productor->id, $tratamiento->productor_id);
-        $this->assertSame('CP 72-2086', $tratamiento->variedad);
-        $this->assertSame('Lote 3', $tratamiento->lote);
         $this->assertTrue($tratamiento->estaAbierto());
         $this->assertTrue($tratamiento->fecha_inicio->isToday());
 
         $escaneo = Escaneo::sole();
         $this->assertSame($tratamiento->id, $escaneo->tratamiento_id);
+        $this->assertSame('Caña 5', $escaneo->numero_cana);
         $this->assertSame(21.47, $escaneo->porcentaje);
         $this->assertSame(3, $escaneo->nivel);
-        Storage::disk('local')->assertExists($escaneo->imagen_original);
-        $this->assertSame('jpg-resaltada', Storage::disk('local')->get($escaneo->imagen_resaltada));
+        $this->disco->assertExists($escaneo->imagen_original);
+        $this->assertSame('jpg-resaltada', $this->disco->get($escaneo->imagen_resaltada));
     }
 
     public function test_un_tratamiento_puede_tener_n_escaneos()
@@ -106,16 +109,25 @@ class TratamientosTest extends TestCase
         $this->assertSame(3, $tratamiento->escaneos()->count());
     }
 
-    public function test_sin_tratamiento_hay_que_dar_sus_datos()
+    public function test_sin_tratamiento_hay_que_dar_su_nombre()
     {
         $this->fingirAnalisis();
 
         $this->escanear(User::factory()->create())
-            ->assertJsonValidationErrors([
-                'nombre' => 'Escribe el nombre del tratamiento.',
-                'variedad' => 'Escribe la variedad de caña.',
-                'lote' => 'Escribe el lote o parcela.',
-            ]);
+            ->assertJsonValidationErrors(['nombre' => 'Escribe el nombre del tratamiento.']);
+
+        Process::assertNothingRan();
+        $this->assertSame(0, Escaneo::count());
+    }
+
+    public function test_el_numero_de_cana_se_pide_tambien_en_un_tratamiento_existente()
+    {
+        $this->fingirAnalisis();
+        $laboratorista = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create();
+
+        $this->escanear($laboratorista, ['tratamiento_id' => $tratamiento->id, 'numero_cana' => ''])
+            ->assertJsonValidationErrors(['numero_cana' => 'Escribe el número de caña.']);
 
         Process::assertNothingRan();
         $this->assertSame(0, Escaneo::count());
@@ -185,7 +197,7 @@ class TratamientosTest extends TestCase
 
         $this->assertSame(0, Tratamiento::count());
         $this->assertSame(0, Escaneo::count());
-        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->assertSame([], $this->disco->allFiles());
     }
 
     public function test_una_foto_rechazada_no_crea_tratamiento_ni_escaneo()
@@ -194,12 +206,12 @@ class TratamientosTest extends TestCase
             '*' => Process::result(output: json_encode(['error' => 'La foto está desenfocada.']), exitCode: 2),
         ]);
 
-        $this->escanear(User::factory()->create(), ['nombre' => 'E', 'variedad' => 'V', 'lote' => 'L'])
+        $this->escanear(User::factory()->create(), ['nombre' => 'E'])
             ->assertJsonValidationErrors(['imagen' => 'La foto está desenfocada.']);
 
         $this->assertSame(0, Tratamiento::count());
         $this->assertSame(0, Escaneo::count());
-        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->assertSame([], $this->disco->allFiles());
     }
 
     public function test_la_pantalla_de_escaneo_ofrece_los_tratamientos_abiertos_visibles()
@@ -208,7 +220,6 @@ class TratamientosTest extends TestCase
         $propio = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Propio']);
         Tratamiento::factory()->cerrado()->for($laboratorista, 'usuario')->create();
         Tratamiento::factory()->create(); // ajeno
-        User::factory()->rol(Rol::Productor)->create(['name' => 'Don Productor']);
 
         $this->actingAs($laboratorista)
             ->get(route('escaneo.create', ['tratamiento' => $propio->id]))
@@ -216,8 +227,7 @@ class TratamientosTest extends TestCase
                 ->where('puedeGuardar', true)
                 ->has('tratamientos', 1)
                 ->where('tratamientos.0.nombre', 'Propio')
-                ->where('tratamientoInicial', $propio->id)
-                ->where('productores.0.name', 'Don Productor'));
+                ->where('tratamientoInicial', $propio->id));
     }
 
     // ---------- Historial por tratamiento ----------
@@ -287,7 +297,12 @@ class TratamientosTest extends TestCase
     {
         $laboratorista = User::factory()->create(['name' => 'Ana']);
         $productor = User::factory()->rol(Rol::Productor)->create(['name' => 'Don Productor']);
-        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['productor_id' => $productor->id]);
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create([
+            'productor_id' => $productor->id,
+            'temperatura' => '25 °C',
+            'fecha_inicio' => '2026-11-01',
+            'fecha_fin' => '2026-11-15',
+        ]);
         $segundo = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['created_at' => now()->subDay()]);
         $primero = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['created_at' => now()->subDays(5)]);
         $tercero = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create();
@@ -298,6 +313,10 @@ class TratamientosTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('laboratorio/tratamientos/show')
                 ->where('tratamiento.id', $tratamiento->id)
+                ->where('tratamiento.temperatura', '25 °C')
+                ->where('tratamiento.fecha_inicio', '2026-11-01')
+                ->where('tratamiento.fecha_fin', '2026-11-15')
+                ->where('tratamiento.duracion_dias', 14)
                 ->where('tratamiento.responsable', 'Ana')
                 ->where('tratamiento.productor', 'Don Productor')
                 ->where('tratamiento.puede_agregar', true)
@@ -341,8 +360,8 @@ class TratamientosTest extends TestCase
     {
         $dueno = User::factory()->create();
         $escaneo = Escaneo::factory()->for(Tratamiento::factory()->for($dueno, 'usuario'))->create();
-        Storage::disk('local')->put($escaneo->imagen_original, 'png-original');
-        Storage::disk('local')->put($escaneo->imagen_resaltada, 'jpg-resaltada');
+        $this->disco->put($escaneo->imagen_original, 'png-original');
+        $this->disco->put($escaneo->imagen_resaltada, 'jpg-resaltada');
 
         foreach ([$dueno, User::factory()->rol(Rol::JefeLaboratorio)->create()] as $usuario) {
             $respuesta = $this->actingAs($usuario)->get(route('laboratorio.escaneos.imagen', [$escaneo, 'resaltada']));
@@ -374,8 +393,8 @@ class TratamientosTest extends TestCase
         $laboratorista = User::factory()->create();
         $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create();
         $escaneo = Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create();
-        Storage::disk('local')->put($escaneo->imagen_original, 'png');
-        Storage::disk('local')->put($escaneo->imagen_resaltada, 'jpg');
+        $this->disco->put($escaneo->imagen_original, 'png');
+        $this->disco->put($escaneo->imagen_resaltada, 'jpg');
         $this->darAcceso($tratamiento, User::factory()->create());
 
         $this->actingAs($laboratorista)
@@ -385,8 +404,8 @@ class TratamientosTest extends TestCase
         $this->assertDatabaseMissing('tratamientos', ['id' => $tratamiento->id]);
         $this->assertSame(0, Escaneo::count());
         $this->assertDatabaseEmpty('accesos_tratamiento');
-        Storage::disk('local')->assertMissing($escaneo->imagen_original);
-        Storage::disk('local')->assertMissing($escaneo->imagen_resaltada);
+        $this->disco->assertMissing($escaneo->imagen_original);
+        $this->disco->assertMissing($escaneo->imagen_resaltada);
     }
 
     public function test_el_jefe_puede_eliminar_cualquier_tratamiento()
@@ -439,5 +458,191 @@ class TratamientosTest extends TestCase
         $this->actingAs($laboratorista)
             ->get(route('laboratorio.tratamientos.show', $invitado))
             ->assertInertia(fn (Assert $page) => $page->where('tratamiento.puede_eliminar', false));
+    }
+
+    public function test_se_puede_filtrar_tratamientos_por_nombre()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        Tratamiento::factory()->create(['nombre' => 'Ensayo Fusarium 2026']);
+        Tratamiento::factory()->create(['nombre' => 'Control Roya']);
+
+        $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.index', ['buscar' => 'Fusarium']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tratamientos.data', 1)
+                ->where('tratamientos.data.0.nombre', 'Ensayo Fusarium 2026')
+                ->where('filtros.buscar', 'Fusarium'));
+    }
+
+    public function test_se_puede_filtrar_tratamientos_por_laboratorista()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        $carlos = User::factory()->create(['name' => 'Carlos Laboratorista']);
+        $maria = User::factory()->create(['name' => 'María Laboratorista']);
+
+        Tratamiento::factory()->for($carlos, 'usuario')->create(['nombre' => 'Ensayo Carlos']);
+        Tratamiento::factory()->for($maria, 'usuario')->create(['nombre' => 'Ensayo María']);
+
+        $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.index', ['laboratorista' => 'Carlos']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tratamientos.data', 1)
+                ->where('tratamientos.data.0.nombre', 'Ensayo Carlos')
+                ->where('filtros.laboratorista', 'Carlos'));
+    }
+
+    public function test_el_laboratorista_no_tiene_filtro_por_laboratorista()
+    {
+        $laboratorista = User::factory()->create(['name' => 'Carlos']);
+        Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Ensayo Carlos']);
+
+        $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('puedeFiltrarPorLaboratorista', false)
+                ->where('laboratoristas', [])
+                ->has('tratamientos.data', 1));
+    }
+
+    public function test_al_laboratorista_se_le_ignora_el_filtro_por_laboratorista_en_la_url()
+    {
+        $laboratorista = User::factory()->create(['name' => 'Carlos']);
+        Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Ensayo Carlos']);
+
+        // Aunque venga en la URL, sus tratamientos se siguen listando completos
+        $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.index', ['laboratorista' => 'María']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filtros.laboratorista', '')
+                ->has('tratamientos.data', 1)
+                ->where('tratamientos.data.0.nombre', 'Ensayo Carlos'));
+    }
+
+    public function test_el_jefe_de_laboratorio_si_tiene_filtro_por_laboratorista()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create(['name' => 'Jefa Ana']);
+        User::factory()->create(['name' => 'Carlos']);
+
+        $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('puedeFiltrarPorLaboratorista', true)
+                ->where('laboratoristas', ['Carlos', 'Jefa Ana']));
+    }
+
+    public function test_se_puede_exportar_reporte_de_tratamientos_a_excel()
+    {
+        $jefe = User::factory()->rol(Rol::JefeLaboratorio)->create();
+        Tratamiento::factory()->create(['nombre' => 'Ensayo Exportar']);
+
+        $response = $this->actingAs($jefe)
+            ->get(route('laboratorio.tratamientos.exportar'))
+            ->assertOk();
+
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+        $this->assertStringContainsString('reporte_tratamientos_', $response->headers->get('content-disposition'));
+    }
+
+    public function test_se_puede_exportar_detalle_de_un_tratamiento_a_excel()
+    {
+        $laboratorista = User::factory()->create();
+        $tratamiento = Tratamiento::factory()->for($laboratorista, 'usuario')->create(['nombre' => 'Ensayo Detalle']);
+        Escaneo::factory()->for($tratamiento)->for($laboratorista, 'usuario')->create(['numero_cana' => 'Caña 1']);
+
+        $response = $this->actingAs($laboratorista)
+            ->get(route('laboratorio.tratamientos.exportar-detalle', $tratamiento))
+            ->assertOk();
+
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+        $this->assertStringContainsString('reporte_ensayo-detalle_', $response->headers->get('content-disposition'));
+    }
+
+    // ---------- Condiciones de incubación: temperatura fija y fechas del calendario ----------
+
+    public function test_la_pantalla_de_escaneo_ofrece_temperaturas_fijas_y_fechas_propuestas()
+    {
+        $this->travelTo('2026-11-13');
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('escaneo.create'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('condiciones.temperaturas', config('escala.temperaturas'))
+                // Protocolo de la tesis de Natalia: 25 °C
+                ->where('condiciones.temperatura', '25 °C')
+                // La duración ya no es una lista: se proponen las fechas del calendario
+                ->where('condiciones.fecha_inicio', '2026-11-13')
+                ->where('condiciones.fecha_fin', '2026-11-27')
+                ->missing('condiciones.duraciones'));
+    }
+
+    public function test_las_temperaturas_van_de_5_en_5_grados()
+    {
+        $this->assertSame(
+            ['5 °C', '10 °C', '15 °C', '20 °C', '25 °C', '30 °C'],
+            config('escala.temperaturas'),
+        );
+    }
+
+    public function test_se_guardan_la_temperatura_y_las_fechas_del_tratamiento()
+    {
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), [
+            'nombre' => 'Ensayo', 'temperatura' => '15 °C',
+            'fecha_inicio' => '2026-11-02', 'fecha_fin' => '2026-11-23',
+        ])->assertOk();
+
+        $tratamiento = Tratamiento::sole();
+        $this->assertSame('15 °C', $tratamiento->temperatura);
+        $this->assertSame('2026-11-02', $tratamiento->fecha_inicio->toDateString());
+        $this->assertSame('2026-11-23', $tratamiento->fecha_fin->toDateString());
+        // La duración ya no se guarda: se calcula con las dos fechas
+        $this->assertSame(21, $tratamiento->duracionDias());
+    }
+
+    public function test_sin_fechas_el_tratamiento_empieza_hoy_y_queda_sin_termino()
+    {
+        $this->travelTo('2026-11-13');
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), ['nombre' => 'Ensayo'])->assertOk();
+
+        $tratamiento = Tratamiento::sole();
+        $this->assertSame('2026-11-13', $tratamiento->fecha_inicio->toDateString());
+        $this->assertNull($tratamiento->fecha_fin);
+        $this->assertNull($tratamiento->duracionDias());
+    }
+
+    public function test_la_temperatura_fuera_de_la_lista_se_rechaza()
+    {
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), [
+            'nombre' => 'Ensayo', 'temperatura' => '26 °C',
+        ])->assertJsonValidationErrors([
+            'temperatura' => 'Elige una temperatura de la lista.',
+        ]);
+
+        Process::assertNothingRan();
+        $this->assertSame(0, Tratamiento::count());
+    }
+
+    public function test_la_fecha_de_termino_no_puede_ser_anterior_a_la_de_inicio()
+    {
+        $this->fingirAnalisis();
+
+        $this->escanear(User::factory()->create(), [
+            'nombre' => 'Ensayo', 'fecha_inicio' => '2026-11-20', 'fecha_fin' => '2026-11-10',
+        ])->assertJsonValidationErrors([
+            'fecha_fin' => 'La fecha de término no puede ser anterior a la de inicio.',
+        ]);
+
+        Process::assertNothingRan();
+        $this->assertSame(0, Tratamiento::count());
     }
 }

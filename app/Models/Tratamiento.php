@@ -22,9 +22,12 @@ use Illuminate\Support\Carbon;
  * @property int $usuario_id
  * @property int|null $productor_id
  * @property string $nombre
- * @property string $variedad
- * @property string $lote
+ * @property string|null $temperatura
+ * @property string|null $variedad
+ * @property string|null $lote
  * @property Carbon $fecha_inicio
+ * @property Carbon|null $fecha_fin Fin de la incubación, elegido en el calendario
+ * @property-read int|null $duracion_dias
  * @property string|null $condiciones
  * @property string|null $notas
  * @property string $estado
@@ -36,7 +39,7 @@ use Illuminate\Support\Carbon;
  * @property-read int|null $escaneos_count
  */
 #[Table('tratamientos')]
-#[Fillable(['usuario_id', 'productor_id', 'nombre', 'variedad', 'lote', 'fecha_inicio', 'condiciones', 'notas', 'estado'])]
+#[Fillable(['usuario_id', 'productor_id', 'nombre', 'temperatura', 'variedad', 'lote', 'fecha_inicio', 'fecha_fin', 'condiciones', 'notas', 'estado'])]
 class Tratamiento extends Model
 {
     /** @use HasFactory<TratamientoFactory> */
@@ -55,6 +58,7 @@ class Tratamiento extends Model
     {
         return [
             'fecha_inicio' => 'date',
+            'fecha_fin' => 'date',
             'cerrado_at' => 'datetime',
             'adjuntos' => 'array',
         ];
@@ -63,6 +67,20 @@ class Tratamiento extends Model
     public function estaAbierto(): bool
     {
         return $this->estado === self::ABIERTO;
+    }
+
+    /**
+     * Días de incubación: de la fecha de inicio a la de término. Null mientras no
+     * se haya elegido la fecha de término en el calendario.
+     */
+    public function duracionDias(): ?int
+    {
+        if ($this->fecha_fin === null) {
+            return null;
+        }
+
+        // Carbon 3 devuelve float con signo: positivo porque fecha_fin es posterior
+        return (int) $this->fecha_inicio->diffInDays($this->fecha_fin);
     }
 
     /**
@@ -120,11 +138,24 @@ class Tratamiento extends Model
     }
 
     /**
+     * Respuestas ya consultadas de tieneAccesoVigente(), por id de usuario.
+     *
+     * @var array<int, bool>
+     */
+    private array $accesoVigente = [];
+
+    /**
      * ¿El usuario tiene un acceso temporal vigente a este tratamiento?
+     *
+     * Se recuerda durante la petición porque el detalle pregunta los permisos de
+     * cada escaneo: si no, repetiría la misma consulta una vez por escaneo.
      */
     public function tieneAccesoVigente(User $usuario): bool
     {
-        return $this->accesos()->vigentes()->where('usuario_id', $usuario->id)->exists();
+        return $this->accesoVigente[$usuario->id] ??= $this->accesos()
+            ->vigentes()
+            ->where('usuario_id', $usuario->id)
+            ->exists();
     }
 
     /**

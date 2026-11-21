@@ -1,27 +1,44 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     ArrowRight,
     ChevronLeft,
     ChevronRight,
+    FileSpreadsheet,
     FlaskConical,
     Images,
+    Search,
+    User,
+    X,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { formatoDia, NivelBadge } from '@/components/escaneo-detalle';
 import type { EscaneoVista } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { create } from '@/routes/escaneo';
-import { index, show } from '@/routes/laboratorio/tratamientos';
+import { exportar, index, show } from '@/routes/laboratorio/tratamientos';
 
 type TratamientoResumen = {
     id: number;
     nombre: string;
-    variedad: string;
-    lote: string;
+    temperatura: string | null;
+    /** null en los tratamientos creados sin estos datos */
+    variedad: string | null;
+    lote: string | null;
     fecha_inicio: string;
+    fecha_fin: string | null;
+    duracion_dias: number | null;
     estado: 'abierto' | 'cerrado';
     responsable: string;
     escaneos: number;
@@ -43,26 +60,208 @@ type Paginado<T> = {
 export default function Tratamientos({
     tratamientos,
     ultimoNivel,
+    filtros = { buscar: '', laboratorista: '' },
+    laboratoristas = [],
+    puedeFiltrarPorLaboratorista = false,
 }: {
     tratamientos: Paginado<TratamientoResumen>;
     ultimoNivel: number;
+    filtros?: { buscar: string; laboratorista: string };
+    laboratoristas?: string[];
+    /** Solo el Jefe de laboratorio ve tratamientos de otras personas */
+    puedeFiltrarPorLaboratorista?: boolean;
 }) {
+    const [buscar, setBuscar] = useState(filtros.buscar || '');
+    const [laboratorista, setLaboratorista] = useState(
+        filtros.laboratorista || '',
+    );
+    const primerRender = useRef(true);
+
+    const tieneFiltros = Boolean(filtros.buscar || filtros.laboratorista);
+
+    const ejecutarBusqueda = (
+        nuevoBuscar: string,
+        nuevoLaboratorista: string,
+    ) => {
+        router.get(
+            index.url({
+                query: {
+                    ...(nuevoBuscar ? { buscar: nuevoBuscar } : {}),
+                    ...(nuevoLaboratorista
+                        ? { laboratorista: nuevoLaboratorista }
+                        : {}),
+                },
+            }),
+            {},
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
+        );
+    };
+
+    // Filtrar automáticamente al escribir en el campo de búsqueda (debounce 300 ms)
+    useEffect(() => {
+        if (primerRender.current) {
+            primerRender.current = false;
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            ejecutarBusqueda(buscar, laboratorista);
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [buscar]);
+
+    const manejarSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        ejecutarBusqueda(buscar, laboratorista);
+    };
+
+    const limpiarFiltros = () => {
+        setBuscar('');
+        setLaboratorista('');
+        router.get(index.url(), {}, { preserveState: true, replace: true });
+    };
+
     return (
         <>
             <Head title="Tratamientos" />
             <div className="flex h-full flex-1 flex-col gap-6 p-5 md:p-8">
+                {/* Cabecera y botón nuevo */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
+                        as="h1"
                         title="Tratamientos"
                         description="Historial de tratamientos y la evolución del daño en cada uno."
                     />
-                    <Button asChild>
-                        <Link href={create()}>Nuevo tratamiento</Link>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" asChild>
+                            <a
+                                href={exportar.url({
+                                    query: {
+                                        ...(filtros.buscar
+                                            ? { buscar: filtros.buscar }
+                                            : {}),
+                                        ...(filtros.laboratorista
+                                            ? {
+                                                  laboratorista:
+                                                      filtros.laboratorista,
+                                              }
+                                            : {}),
+                                    },
+                                })}
+                                download
+                            >
+                                <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+                                Exportar a Excel
+                            </a>
+                        </Button>
+                        <Button asChild>
+                            <Link href={create()}>Nuevo tratamiento</Link>
+                        </Button>
+                    </div>
                 </div>
 
+                {/* Barra de filtros: nombre del tratamiento y, para el Jefe, laboratorista */}
+                <Card>
+                    <CardContent className="p-4">
+                        <form
+                            onSubmit={manejarSubmit}
+                            className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                        >
+                            {/* 1. Filtro por nombre de tratamiento */}
+                            <div className="relative flex-1">
+                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={buscar}
+                                    onChange={(e) => setBuscar(e.target.value)}
+                                    placeholder="Buscar por nombre de tratamiento..."
+                                    className="pr-9 pl-9"
+                                />
+                                {buscar && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setBuscar('');
+                                            ejecutarBusqueda('', laboratorista);
+                                        }}
+                                        className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                        title="Borrar texto"
+                                    >
+                                        <X className="size-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* 2. Filtro por laboratorista (solo el Jefe) */}
+                            {puedeFiltrarPorLaboratorista && (
+                                <div className="w-full sm:w-64">
+                                    <Select
+                                        value={laboratorista || 'todos'}
+                                        onValueChange={(val) => {
+                                            const nuevo =
+                                                val === 'todos' ? '' : val;
+                                            setLaboratorista(nuevo);
+                                            ejecutarBusqueda(buscar, nuevo);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <div className="flex items-center gap-2 truncate">
+                                                <User className="size-4 text-muted-foreground" />
+                                                <SelectValue placeholder="Todos los laboratoristas" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="todos">
+                                                Todos los laboratoristas
+                                            </SelectItem>
+                                            {laboratoristas.map((nombre) => (
+                                                <SelectItem
+                                                    key={nombre}
+                                                    value={nombre}
+                                                >
+                                                    {nombre}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {/* Botón buscar y botón limpiar */}
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="submit"
+                                    variant="secondary"
+                                    className="px-4"
+                                >
+                                    Buscar
+                                </Button>
+                                {tieneFiltros && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={limpiarFiltros}
+                                        title="Limpiar filtros"
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                {/* Listado de Tratamientos o estado vacío */}
                 {tratamientos.data.length === 0 ? (
-                    <SinTratamientos />
+                    <SinTratamientos
+                        tieneFiltros={tieneFiltros}
+                        onLimpiar={limpiarFiltros}
+                    />
                 ) : (
                     <>
                         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -84,20 +283,42 @@ export default function Tratamientos({
     );
 }
 
-function SinTratamientos() {
+function SinTratamientos({
+    tieneFiltros = false,
+    onLimpiar,
+}: {
+    tieneFiltros?: boolean;
+    onLimpiar?: () => void;
+}) {
     return (
         <Card>
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
                 <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                    <FlaskConical className="size-5 text-muted-foreground" />
+                    {tieneFiltros ? (
+                        <Search className="size-5 text-muted-foreground" />
+                    ) : (
+                        <FlaskConical className="size-5 text-muted-foreground" />
+                    )}
                 </span>
-                <p className="font-medium">Todavía no hay tratamientos</p>
-                <p className="text-sm text-muted-foreground">
-                    El primer escaneo de un tallo inicia un tratamiento.
+                <p className="font-medium">
+                    {tieneFiltros
+                        ? 'No se encontraron tratamientos con los filtros aplicados'
+                        : 'Todavía no hay tratamientos'}
                 </p>
-                <Button asChild>
-                    <Link href={create()}>Escanear un tallo</Link>
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                    {tieneFiltros
+                        ? 'Intenta buscar con otros términos o limpia los filtros de búsqueda.'
+                        : 'El primer escaneo de un tallo inicia un tratamiento.'}
+                </p>
+                {tieneFiltros ? (
+                    <Button variant="outline" onClick={onLimpiar}>
+                        Limpiar filtros
+                    </Button>
+                ) : (
+                    <Button asChild>
+                        <Link href={create()}>Escanear un tallo</Link>
+                    </Button>
+                )}
             </CardContent>
         </Card>
     );
@@ -151,8 +372,16 @@ function TarjetaTratamiento({
                 <CardContent className="flex flex-col gap-2 p-4">
                     <p className="leading-tight font-semibold">{t.nombre}</p>
                     <p className="text-xs text-muted-foreground">
-                        {t.variedad} · {t.lote} · desde{' '}
-                        {formatoDia.format(new Date(t.fecha_inicio))}
+                        {[
+                            t.variedad,
+                            t.lote,
+                            `desde ${formatoDia.format(new Date(t.fecha_inicio))}`,
+                            t.duracion_dias !== null
+                                ? `${t.duracion_dias} ${t.duracion_dias === 1 ? 'día' : 'días'}`
+                                : null,
+                        ]
+                            .filter(Boolean)
+                            .join(' · ')}
                     </p>
 
                     {t.ultimo && (
