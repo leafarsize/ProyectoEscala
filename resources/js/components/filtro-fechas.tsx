@@ -23,8 +23,8 @@ export function FiltroFechas({
     hasta,
     onCambio,
     idPrefijo = 'filtro',
-    etiquetaDesde = 'Iniciados desde',
-    etiquetaHasta = 'Iniciados hasta',
+    etiquetaDesde = 'Inicio',
+    etiquetaHasta = 'Fin',
 }: {
     desde: string;
     hasta: string;
