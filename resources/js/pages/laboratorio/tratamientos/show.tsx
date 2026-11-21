@@ -1,12 +1,5 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import {
-    ArrowRight,
-    FileSpreadsheet,
-    Pencil,
-    ScanLine,
-    Trash2,
-    Undo2,
-} from 'lucide-react';
+import { FileSpreadsheet, Pencil, ScanLine, Trash2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import TratamientoController from '@/actions/App/Http/Controllers/TratamientoController';
@@ -59,6 +52,10 @@ type Tratamiento = {
     responsable: string;
     productor: string | null;
     notas: string | null;
+    /** Daño promedio de todos los tallos; null si aún no hay ninguno */
+    promedio: number | null;
+    /** Desviación estándar muestral; null con menos de dos tallos */
+    desviacion: number | null;
     puede_agregar: boolean;
     puede_editar: boolean;
     puede_eliminar: boolean;
@@ -83,13 +80,6 @@ export default function DetalleTratamiento({
     const [editando, setEditando] = useState(false);
     // Índice del escaneo que se está por descartar, para confirmar antes de borrarlo
     const [porDescartar, setPorDescartar] = useState<number | null>(null);
-    const inicial = escaneos[0];
-    const ultimo = escaneos[escaneos.length - 1];
-    const cambio =
-        inicial && ultimo && escaneos.length > 1
-            ? ultimo.porcentaje - inicial.porcentaje
-            : null;
-
     return (
         <>
             <Head title={t.nombre} />
@@ -194,35 +184,26 @@ export default function DetalleTratamiento({
                         {t.productor && (
                             <Dato titulo="Productor" valor={t.productor} />
                         )}
-                        {inicial && ultimo && (
+                        {t.promedio !== null && (
                             <Dato
-                                titulo="Evolución del daño"
+                                titulo="Daño promedio"
                                 valor={
-                                    cambio === null ? (
-                                        `${ultimo.porcentaje.toFixed(1)} %`
-                                    ) : (
-                                        <span className="flex flex-wrap items-center gap-x-1.5 tabular-nums">
-                                            <span className="whitespace-nowrap">
-                                                {inicial.porcentaje.toFixed(1)}{' '}
-                                                %
-                                            </span>
-                                            <ArrowRight className="size-3.5" />
-                                            <span className="whitespace-nowrap">
-                                                {ultimo.porcentaje.toFixed(1)} %
-                                            </span>
-                                            <span
-                                                className={cn(
-                                                    'whitespace-nowrap',
-                                                    cambio > 0
-                                                        ? 'text-destructive'
-                                                        : 'text-muted-foreground',
-                                                )}
-                                            >
-                                                ({cambio > 0 ? '+' : ''}
-                                                {cambio.toFixed(1)} pts)
-                                            </span>
+                                    <span className="flex flex-wrap items-baseline gap-x-1.5 tabular-nums">
+                                        <span className="whitespace-nowrap">
+                                            {t.promedio.toFixed(1)} %
                                         </span>
-                                    )
+                                        {t.desviacion !== null && (
+                                            <span className="whitespace-nowrap text-muted-foreground">
+                                                ± {t.desviacion.toFixed(1)}
+                                            </span>
+                                        )}
+                                        <span className="text-xs whitespace-nowrap text-muted-foreground">
+                                            en {escaneos.length}{' '}
+                                            {escaneos.length === 1
+                                                ? 'tallo'
+                                                : 'tallos'}
+                                        </span>
+                                    </span>
                                 }
                             />
                         )}

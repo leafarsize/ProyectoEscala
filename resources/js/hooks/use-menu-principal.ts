@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     ClipboardList,
     LayoutGrid,
     ScanLine,
@@ -9,6 +10,7 @@ import {
 import { dashboard } from '@/routes';
 import { create as escanear } from '@/routes/escaneo';
 import { index as usuarios } from '@/routes/jefe/usuarios';
+import { index as comparar } from '@/routes/laboratorio/comparar';
 import { index as tratamientos } from '@/routes/laboratorio/tratamientos';
 import { resultados } from '@/routes/productor';
 import type { NavItem, Rol } from '@/types';
@@ -26,6 +28,12 @@ const items: NavItemConRoles[] = [
         title: 'Tratamientos',
         href: tratamientos(),
         icon: ClipboardList,
+        roles: ['laboratorista', 'jefe_laboratorio'],
+    },
+    {
+        title: 'Comparar',
+        href: comparar(),
+        icon: BarChart3,
         roles: ['laboratorista', 'jefe_laboratorio'],
     },
     {

@@ -12,7 +12,10 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, ReactNode } from 'react';
 import { toast } from 'sonner';
+import { EditorMascara } from '@/components/editor-mascara';
+import type { RevisionMascara } from '@/components/editor-mascara';
 import { NivelBadge } from '@/components/escaneo-detalle';
+import type { NivelSeveridad } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -36,12 +39,6 @@ import { cn } from '@/lib/utils';
 import { analizar, create } from '@/routes/escaneo';
 import { show as verTratamiento } from '@/routes/laboratorio/tratamientos';
 
-type Nivel = {
-    nivel: number;
-    etiqueta: string;
-    hasta: number | null;
-};
-
 type Resultado = {
     porcentaje: number;
     nivel: number;
@@ -60,10 +57,12 @@ type TratamientoOpcion = {
     variedad: string | null;
     lote: string | null;
     escaneos: number;
+    ultimo_numero_cana: string | null;
 };
 
 type DatosEscaneo = {
     imagen: File | null;
+    mascara?: File;
     tratamiento_id: string;
     nombre: string;
     temperatura: string;
@@ -87,6 +86,25 @@ type Condiciones = {
 };
 
 const FORMATOS = 'image/jpeg,image/png,image/webp';
+const MAX_NUMERO_CANA = 50;
+
+function sugerirNumeroCana(anterior?: string | null): string {
+    const numero = anterior?.trim() ?? '';
+    const digitos = numero.match(/\d+$/)?.[0];
+
+    if (!digitos) {
+        return '';
+    }
+
+    const prefijo = numero.slice(0, -digitos.length);
+    const siguiente = String(BigInt(digitos) + 1n).padStart(
+        digitos.length,
+        '0',
+    );
+    const sugerencia = prefijo + siguiente;
+
+    return sugerencia.length <= MAX_NUMERO_CANA ? sugerencia : '';
+}
 
 export default function Escanear({
     maxKb,
@@ -97,26 +115,30 @@ export default function Escanear({
     condiciones,
 }: {
     maxKb: number;
-    niveles: Nivel[];
+    niveles: NivelSeveridad[];
     puedeGuardar: boolean;
     tratamientos: TratamientoOpcion[];
     tratamientoInicial: number | null;
     condiciones: Condiciones;
 }) {
-    const http = useHttp<DatosEscaneo, Resultado>({
+    const http = useHttp<DatosEscaneo, Resultado | RevisionMascara>({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
         temperatura: condiciones.temperatura,
         fecha_inicio: condiciones.fecha_inicio,
         fecha_fin: condiciones.fecha_fin,
-        numero_cana: '',
+        numero_cana: sugerirNumeroCana(
+            tratamientos.find((t) => t.id === tratamientoInicial)
+                ?.ultimo_numero_cana,
+        ),
     });
     const [modo, setModo] = useState<Modo>(
         tratamientoInicial ? 'existente' : 'nuevo',
     );
     const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Resultado | null>(null);
+    const [revision, setRevision] = useState<RevisionMascara | null>(null);
     const [errorServidor, setErrorServidor] = useState<string | null>(null);
     const [visorCamaraAbierto, setVisorCamaraAbierto] = useState(false);
 
@@ -149,9 +171,13 @@ export default function Escanear({
             'fecha_inicio',
             'fecha_fin',
         );
-        // En un tratamiento nuevo no se envía tratamiento_id
         if (nuevo === 'nuevo') {
-            http.setData('tratamiento_id', '');
+            http.setData((datos) => ({
+                ...datos,
+                tratamiento_id: '',
+                numero_cana: '',
+            }));
+            http.clearErrors('numero_cana');
         }
     };
 
@@ -165,6 +191,7 @@ export default function Escanear({
     }, [vistaPrevia]);
 
     const elegirFoto = async (original: File) => {
+        setRevision(null);
         setResultado(null);
         setErrorServidor(null);
         http.clearErrors();
@@ -204,6 +231,7 @@ export default function Escanear({
     };
 
     const quitarFoto = () => {
+        setRevision(null);
         setResultado(null);
         setVistaPrevia(null);
         setErrorServidor(null);
@@ -225,8 +253,7 @@ export default function Escanear({
                 ...http.data,
                 imagen: null,
                 tratamiento_id: String(tratamiento.id),
-                // El siguiente escaneo es otro tallo
-                numero_cana: '',
+                numero_cana: sugerirNumeroCana(http.data.numero_cana),
             });
             setModo('existente');
         } else {
@@ -243,7 +270,7 @@ export default function Escanear({
         }
     };
 
-    const analizarTallo = async () => {
+    const analizarTallo = async (mascara?: File) => {
         setErrorServidor(null);
 
         if (puedeGuardar && modo === 'existente' && !http.data.tratamiento_id) {
@@ -253,10 +280,18 @@ export default function Escanear({
         }
 
         try {
+            http.transform((datos) =>
+                mascara ? { ...datos, mascara } : { ...datos, revisar: 1 },
+            );
             // Los errores de validación (422) quedan en http.errors
             const respuesta = await http.submit(analizar());
 
             if (respuesta) {
+                if ('mapa_revision' in respuesta) {
+                    setRevision(respuesta);
+                    return;
+                }
+                setRevision(null);
                 setResultado(respuesta);
 
                 if (respuesta.tratamiento) {
@@ -269,6 +304,7 @@ export default function Escanear({
             // Se conserva la foto para poder reintentar
             const estado = (error as { response?: { status: number } }).response
                 ?.status;
+            if (estado === 422) return;
             // SyntaxError = el servidor respondió algo que no es JSON (p. ej. un warning de PHP)
             const sinConexion = !estado && !(error instanceof SyntaxError);
 
@@ -308,6 +344,20 @@ export default function Escanear({
                                 onModo={cambiarModo}
                                 datos={http.data}
                                 onCambio={(campo, valor) => {
+                                    if (campo === 'tratamiento_id') {
+                                        const seleccionado = tratamientos.find(
+                                            (t) => String(t.id) === valor,
+                                        );
+                                        http.setData((datos) => ({
+                                            ...datos,
+                                            tratamiento_id: valor,
+                                            numero_cana: sugerirNumeroCana(
+                                                seleccionado?.ultimo_numero_cana,
+                                            ),
+                                        }));
+                                        http.clearErrors(campo, 'numero_cana');
+                                        return;
+                                    }
                                     http.setData(campo, valor);
                                     http.clearErrors(campo);
                                 }}
@@ -319,7 +369,16 @@ export default function Escanear({
                         )}
                         <Card>
                             <CardContent className="flex flex-col gap-4">
-                                {vistaPrevia ? (
+                                {revision ? (
+                                    <EditorMascara
+                                        revision={revision}
+                                        niveles={niveles}
+                                        ocupado={http.processing}
+                                        puedeGuardar={puedeGuardar}
+                                        onConfirmar={analizarTallo}
+                                        onVolver={() => setRevision(null)}
+                                    />
+                                ) : vistaPrevia ? (
                                     <VistaPrevia
                                         src={vistaPrevia}
                                         analizando={http.processing}
@@ -339,6 +398,7 @@ export default function Escanear({
                                 )}
 
                                 <InputError message={http.errors.imagen} />
+                                <InputError message={http.errors.mascara} />
 
                                 {errorServidor && (
                                     <Alert variant="destructive">
@@ -348,11 +408,11 @@ export default function Escanear({
                                     </Alert>
                                 )}
 
-                                {vistaPrevia && (
+                                {vistaPrevia && !revision && (
                                     <Button
                                         size="lg"
                                         disabled={http.processing}
-                                        onClick={analizarTallo}
+                                        onClick={() => analizarTallo()}
                                     >
                                         {http.processing ? (
                                             <Spinner />
@@ -399,7 +459,7 @@ function SeccionTratamiento({
     onModo: (modo: Modo) => void;
     datos: DatosEscaneo;
     onCambio: (
-        campo: Exclude<keyof DatosEscaneo, 'imagen'>,
+        campo: Exclude<keyof DatosEscaneo, 'imagen' | 'mascara'>,
         valor: string,
     ) => void;
     errores: Partial<Record<keyof DatosEscaneo, string>>;
@@ -450,7 +510,7 @@ function SeccionTratamiento({
                         >
                             <Input
                                 id="nombre"
-                                placeholder="Ej. M. guilliermondii lote 3, o Testigo"
+                                placeholder="Ej. Tratamiento A"
                                 value={datos.nombre}
                                 maxLength={255}
                                 disabled={deshabilitado}
@@ -545,7 +605,6 @@ function SeccionTratamiento({
                     </Campo>
                 )}
 
-                {/* Cada foto es un tallo distinto, así que se pide en los dos modos */}
                 <Campo
                     id="numero_cana"
                     etiqueta="Número de caña"
@@ -554,7 +613,7 @@ function SeccionTratamiento({
                     <Input
                         id="numero_cana"
                         value={datos.numero_cana}
-                        maxLength={50}
+                        maxLength={MAX_NUMERO_CANA}
                         disabled={deshabilitado}
                         onChange={(e) =>
                             onCambio('numero_cana', e.target.value)
@@ -854,7 +913,7 @@ function VistaResultado({
 }: {
     resultado: Resultado;
     original: string;
-    niveles: Nivel[];
+    niveles: NivelSeveridad[];
     onNuevo: (mismoTratamiento: boolean) => void;
 }) {
     const [vista, setVista] = useState<'lesiones' | 'original'>('lesiones');
@@ -1023,7 +1082,7 @@ function EscalaSeveridad({
     niveles,
     actual,
 }: {
-    niveles: Nivel[];
+    niveles: NivelSeveridad[];
     actual: number;
 }) {
     return (
