@@ -123,8 +123,6 @@ class TratamientoController extends Controller
                 'ID',
                 'Tratamiento',
                 'Temperatura',
-                'Variedad',
-                'Lote',
                 'Fecha Inicio',
                 'Fecha Término',
                 'Duración (días)',
@@ -136,7 +134,6 @@ class TratamientoController extends Controller
                 'Daño Actual (%)',
                 'Variación Daño (pts)',
                 'Nivel Severidad',
-                'Diagnóstico de Efectividad',
             ], escape: '\\');
 
             foreach ($tratamientos as $t) {
@@ -146,25 +143,10 @@ class TratamientoController extends Controller
                     ? round($ultimo - $inicial, 2)
                     : null;
 
-                $diagnostico = 'Sin escaneos';
-                if ($t->escaneos_count === 1) {
-                    $diagnostico = 'Escaneo inicial';
-                } elseif ($t->escaneos_count > 1 && $cambio !== null) {
-                    if ($cambio <= 0) {
-                        $diagnostico = 'Funcionando (Daño contenido)';
-                    } elseif ($cambio <= 2.5) {
-                        $diagnostico = 'Efectividad moderada';
-                    } else {
-                        $diagnostico = 'No funcionando (Daño avanzando)';
-                    }
-                }
-
                 fputcsv($salida, [
                     $t->id,
                     $t->nombre,
                     $t->temperatura ?? 'N/A',
-                    $t->variedad ?? 'N/A',
-                    $t->lote ?? 'N/A',
                     $t->fecha_inicio->format('d/m/Y'),
                     $t->fecha_fin?->format('d/m/Y') ?? 'N/A',
                     $t->duracionDias() ?? 'N/A',
@@ -176,7 +158,6 @@ class TratamientoController extends Controller
                     $ultimo !== null ? number_format($ultimo, 2, '.', '').'%' : 'N/A',
                     $cambio !== null ? ($cambio > 0 ? "+{$cambio}" : "{$cambio}") : 'N/A',
                     $t->ultimoEscaneo ? "Nivel {$t->ultimoEscaneo->nivel} ({$t->ultimoEscaneo->etiqueta})" : 'N/A',
-                    $diagnostico,
                 ], escape: '\\');
             }
 
