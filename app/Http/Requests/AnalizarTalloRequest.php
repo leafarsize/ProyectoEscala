@@ -36,11 +36,11 @@ class AnalizarTalloRequest extends FormRequest
             'tratamiento_id' => ['nullable', 'integer', 'exists:tratamientos,id'],
             // …o el primero de un tratamiento nuevo
             'nombre' => ['required_without:tratamiento_id', 'nullable', 'string', 'max:255'],
-            // Levadura de biocontrol aplicada (o "Testigo" si no se aplicó ninguna)
-            'levadura' => ['nullable', 'string', 'max:150'],
             // Solo los valores de config/escala.php, para que los tratamientos sean comparables
-            'duracion' => ['nullable', Rule::in(Config::array('escala.duraciones'))],
             'temperatura' => ['nullable', Rule::in(Config::array('escala.temperaturas'))],
+            // Incubación: se eligen en el calendario. La duración en días se calcula con las dos.
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
             // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
             'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [
@@ -93,8 +93,10 @@ class AnalizarTalloRequest extends FormRequest
             'nombre.required_without' => 'Escribe el nombre del tratamiento.',
             'numero_cana.required' => 'Escribe el número de caña.',
             'productor_id.exists' => 'Elige un productor válido.',
-            'duracion.in' => 'Elige una duración de la lista.',
             'temperatura.in' => 'Elige una temperatura de la lista.',
+            'fecha_inicio.date' => 'Elige una fecha de inicio válida.',
+            'fecha_fin.date' => 'Elige una fecha de término válida.',
+            'fecha_fin.after_or_equal' => 'La fecha de término no puede ser anterior a la de inicio.',
         ];
     }
 }

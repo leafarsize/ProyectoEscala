@@ -10,7 +10,9 @@ use App\Models\User;
 use App\Services\AnalizadorTallo;
 use App\Services\HistorialEscaneos;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -42,7 +44,6 @@ class EscaneoController extends Controller
                 ->map(fn (Tratamiento $t) => [
                     'id' => $t->id,
                     'nombre' => $t->nombre,
-                    'levadura' => $t->levadura,
                     'variedad' => $t->variedad,
                     'lote' => $t->lote,
                     'escaneos' => $t->escaneos_count,
@@ -57,12 +58,14 @@ class EscaneoController extends Controller
             'puedeGuardar' => $puedeGuardar,
             'tratamientos' => $tratamientos,
             'tratamientoInicial' => $tratamientos->contains('id', $inicial) ? $inicial : null,
-            // Opciones fijas de incubación (config/escala.php)
+            // Condiciones de incubación (config/escala.php): la temperatura sale de una
+            // lista fija y las fechas se eligen en el calendario, con la de término
+            // propuesta a 'dias_por_defecto' días del inicio.
             'condiciones' => [
-                'duraciones' => config('escala.duraciones'),
-                'duracion' => config('escala.duracion_por_defecto'),
                 'temperaturas' => config('escala.temperaturas'),
                 'temperatura' => config('escala.temperatura_por_defecto'),
+                'fecha_inicio' => today()->toDateString(),
+                'fecha_fin' => today()->addDays(Config::integer('escala.dias_por_defecto'))->toDateString(),
             ],
         ]);
     }
@@ -111,9 +114,10 @@ class EscaneoController extends Controller
         // El tratamiento nuevo solo se crea si el análisis salió bien
         [$escaneo, $tratamiento] = DB::transaction(function () use ($request, $usuario, $foto, $resultado, $historial, $tratamiento) {
             $tratamiento ??= Tratamiento::create([
-                ...$request->safe()->only(['nombre', 'levadura', 'duracion', 'temperatura', 'productor_id']),
+                ...$request->safe()->only(['nombre', 'temperatura', 'fecha_fin', 'productor_id']),
                 'usuario_id' => $usuario->id,
-                'fecha_inicio' => today(),
+                // Si no se eligió fecha de inicio en el calendario, el tratamiento empieza hoy
+                'fecha_inicio' => $request->validated('fecha_inicio') ?? today(),
                 'estado' => Tratamiento::ABIERTO,
             ]);
 
@@ -131,6 +135,25 @@ class EscaneoController extends Controller
                 'escaneos' => $tratamiento->escaneos()->count(),
             ],
         ]);
+    }
+
+    /**
+     * Borra un escaneo que no sirve (foto mal tomada, tallo repetido) con sus imágenes.
+     * El tratamiento y los demás escaneos se quedan como están.
+     */
+    public function destroy(Escaneo $escaneo, HistorialEscaneos $historial): RedirectResponse
+    {
+        Gate::authorize('delete', $escaneo);
+
+        $tratamiento = $escaneo->tratamiento;
+
+        $historial->eliminarEscaneo($escaneo);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Escaneo eliminado.']);
+
+        return $tratamiento === null
+            ? to_route('laboratorio.tratamientos.index')
+            : to_route('laboratorio.tratamientos.show', $tratamiento);
     }
 
     /**

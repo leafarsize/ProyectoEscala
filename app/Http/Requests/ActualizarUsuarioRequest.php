@@ -7,6 +7,7 @@ use App\Enums\Rol;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class ActualizarUsuarioRequest extends FormRequest
 {
@@ -23,6 +24,9 @@ class ActualizarUsuarioRequest extends FormRequest
             'name' => $this->nameRules(),
             // Se ignora al propio usuario: si no cambia el correo, no debe chocar consigo mismo
             'email' => $this->emailRules($this->usuarioId()),
+            // El Jefe de laboratorio asigna la contraseña, porque ya no hay recuperación
+            // por correo. Es opcional: si la deja vacía, la contraseña no se toca.
+            'password' => ['nullable', 'string', Password::default(), 'confirmed'],
         ];
 
         // Nadie cambia su propio rol ni se desactiva, así que el formulario no los envía
@@ -63,6 +67,7 @@ class ActualizarUsuarioRequest extends FormRequest
             'email.required' => 'Escribe el correo del usuario.',
             'email.email' => 'Ese correo no tiene un formato válido.',
             'email.unique' => 'Ya existe otra cuenta con ese correo.',
+            'password.confirmed' => 'Las dos contraseñas no coinciden.',
             'rol.required' => 'Elige un rol.',
             'activo.required' => 'Elige el estado de la cuenta.',
         ];

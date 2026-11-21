@@ -2,18 +2,15 @@ import { Form, Head } from '@inertiajs/react';
 import { ArrowRight, Lock, Mail } from 'lucide-react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
-import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { store } from '@/routes/login';
-import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
-    canResetPassword: boolean;
 };
 
 // Estilo de Nexo: inputs altos con ícono que se vuelve naranja al enfocar
@@ -23,7 +20,7 @@ const icono =
     'pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary';
 const etiqueta = 'text-sm font-semibold text-tec-marino dark:text-foreground';
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({ status }: Props) {
     return (
         <>
             <Head title="Iniciar sesión" />
@@ -76,24 +73,13 @@ export default function Login({ status, canResetPassword }: Props) {
                                 <InputError message={errors.password} />
                             </div>
 
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <Checkbox
-                                        id="remember"
-                                        name="remember"
-                                        tabIndex={3}
-                                    />
-                                    <Label htmlFor="remember">Recordarme</Label>
-                                </div>
-                                {canResetPassword && (
-                                    <TextLink
-                                        href={request()}
-                                        className="text-sm text-muted-foreground no-underline hover:text-primary hover:underline"
-                                        tabIndex={5}
-                                    >
-                                        ¿Olvidaste tu contraseña?
-                                    </TextLink>
-                                )}
+                            <div className="flex items-center space-x-3">
+                                <Checkbox
+                                    id="remember"
+                                    name="remember"
+                                    tabIndex={3}
+                                />
+                                <Label htmlFor="remember">Recordarme</Label>
                             </div>
 
                             <Button

@@ -7,18 +7,12 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
-import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
 
 const sidebarNavItems: NavItem[] = [
     {
         title: 'Perfil',
         href: edit(),
-        icon: null,
-    },
-    {
-        title: 'Seguridad',
-        href: editSecurity(),
         icon: null,
     },
     {
@@ -35,7 +29,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
         <div className="p-5 md:p-8">
             <Heading
                 title="Configuración"
-                description="Administra tu perfil, la seguridad y la apariencia de tu cuenta"
+                description="Administra tu perfil y la apariencia de tu cuenta"
                 className="mb-8"
             />
 

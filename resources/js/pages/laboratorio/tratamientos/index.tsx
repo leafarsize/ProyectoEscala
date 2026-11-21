@@ -32,13 +32,13 @@ import { exportar, index, show } from '@/routes/laboratorio/tratamientos';
 type TratamientoResumen = {
     id: number;
     nombre: string;
-    levadura: string | null;
-    duracion: string | null;
     temperatura: string | null;
     /** null en los tratamientos creados sin estos datos */
     variedad: string | null;
     lote: string | null;
     fecha_inicio: string;
+    fecha_fin: string | null;
+    duracion_dias: number | null;
     estado: 'abierto' | 'cerrado';
     responsable: string;
     escaneos: number;
@@ -62,11 +62,14 @@ export default function Tratamientos({
     ultimoNivel,
     filtros = { buscar: '', laboratorista: '' },
     laboratoristas = [],
+    puedeFiltrarPorLaboratorista = false,
 }: {
     tratamientos: Paginado<TratamientoResumen>;
     ultimoNivel: number;
     filtros?: { buscar: string; laboratorista: string };
     laboratoristas?: string[];
+    /** Solo el Jefe de laboratorio ve tratamientos de otras personas */
+    puedeFiltrarPorLaboratorista?: boolean;
 }) {
     const [buscar, setBuscar] = useState(filtros.buscar || '');
     const [laboratorista, setLaboratorista] = useState(
@@ -130,6 +133,7 @@ export default function Tratamientos({
                 {/* Cabecera y botón nuevo */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
+                        as="h1"
                         title="Tratamientos"
                         description="Historial de tratamientos y la evolución del daño en cada uno."
                     />
@@ -161,7 +165,7 @@ export default function Tratamientos({
                     </div>
                 </div>
 
-                {/* Barra de Filtros: Búsqueda por Nombre y por Laboratorista */}
+                {/* Barra de filtros: nombre del tratamiento y, para el Jefe, laboratorista */}
                 <Card>
                     <CardContent className="p-4">
                         <form
@@ -192,38 +196,40 @@ export default function Tratamientos({
                                 )}
                             </div>
 
-                            {/* 2. Filtro por laboratorista */}
-                            <div className="w-full sm:w-64">
-                                <Select
-                                    value={laboratorista || 'todos'}
-                                    onValueChange={(val) => {
-                                        const nuevo =
-                                            val === 'todos' ? '' : val;
-                                        setLaboratorista(nuevo);
-                                        ejecutarBusqueda(buscar, nuevo);
-                                    }}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <div className="flex items-center gap-2 truncate">
-                                            <User className="size-4 text-muted-foreground" />
-                                            <SelectValue placeholder="Todos los laboratoristas" />
-                                        </div>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="todos">
-                                            Todos los laboratoristas
-                                        </SelectItem>
-                                        {laboratoristas.map((nombre) => (
-                                            <SelectItem
-                                                key={nombre}
-                                                value={nombre}
-                                            >
-                                                {nombre}
+                            {/* 2. Filtro por laboratorista (solo el Jefe) */}
+                            {puedeFiltrarPorLaboratorista && (
+                                <div className="w-full sm:w-64">
+                                    <Select
+                                        value={laboratorista || 'todos'}
+                                        onValueChange={(val) => {
+                                            const nuevo =
+                                                val === 'todos' ? '' : val;
+                                            setLaboratorista(nuevo);
+                                            ejecutarBusqueda(buscar, nuevo);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <div className="flex items-center gap-2 truncate">
+                                                <User className="size-4 text-muted-foreground" />
+                                                <SelectValue placeholder="Todos los laboratoristas" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="todos">
+                                                Todos los laboratoristas
                                             </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                            {laboratoristas.map((nombre) => (
+                                                <SelectItem
+                                                    key={nombre}
+                                                    value={nombre}
+                                                >
+                                                    {nombre}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
 
                             {/* Botón buscar y botón limpiar */}
                             <div className="flex items-center gap-2">
@@ -367,10 +373,12 @@ function TarjetaTratamiento({
                     <p className="leading-tight font-semibold">{t.nombre}</p>
                     <p className="text-xs text-muted-foreground">
                         {[
-                            t.levadura,
                             t.variedad,
                             t.lote,
                             `desde ${formatoDia.format(new Date(t.fecha_inicio))}`,
+                            t.duracion_dias !== null
+                                ? `${t.duracion_dias} ${t.duracion_dias === 1 ? 'día' : 'días'}`
+                                : null,
                         ]
                             .filter(Boolean)
                             .join(' · ')}

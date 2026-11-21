@@ -38,6 +38,16 @@ class TratamientoPolicy
     }
 
     /**
+     * Editar los datos del tratamiento (nombre, condiciones, fechas, estado):
+     * las mismas personas que pueden eliminarlo. Un acceso temporal solo sirve
+     * para ver y agregar escaneos, no para cambiar la ficha del ensayo.
+     */
+    public function update(User $usuario, Tratamiento $tratamiento): bool
+    {
+        return $this->delete($usuario, $tratamiento);
+    }
+
+    /**
      * Eliminar el tratamiento y sus escaneos: el Jefe de laboratorio cualquiera,
      * el laboratorista solo los suyos. Un acceso temporal no basta para borrar.
      */

@@ -80,7 +80,8 @@ class UsuariosController extends Controller
     }
 
     /**
-     * Actualiza nombre, correo, rol y estado de la cuenta.
+     * Actualiza nombre, correo, rol, estado de la cuenta y, si se escribió una
+     * nueva, la contraseña.
      */
     public function update(ActualizarUsuarioRequest $request, int $usuario): RedirectResponse
     {
@@ -93,6 +94,11 @@ class UsuariosController extends Controller
             'email' => $datos['email'],
             'updated_at' => now(),
         ];
+
+        // La contraseña solo se cambia si el Jefe escribió una nueva
+        if (filled($datos['password'] ?? null)) {
+            $cambios['password'] = Hash::make($datos['password']);
+        }
 
         // Nadie cambia su propio rol ni se desactiva: se quedaría sin poder administrar
         if ($usuario !== $request->user()?->id) {

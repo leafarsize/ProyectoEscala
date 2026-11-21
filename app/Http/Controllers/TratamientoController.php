@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Rol;
+use App\Http\Requests\ActualizarTratamientoRequest;
 use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
@@ -33,7 +34,10 @@ class TratamientoController extends Controller
         $usuario = $request->user();
 
         $buscar = $request->string('buscar')->trim()->value();
-        $laboratorista = $request->string('laboratorista')->trim()->value();
+        // Solo el Jefe de laboratorio ve el trabajo de otras personas, así que es el
+        // único que necesita filtrar por laboratorista. Al laboratorista se le ignora.
+        $esJefe = $usuario->tieneRol(Rol::JefeLaboratorio);
+        $laboratorista = $esJefe ? $request->string('laboratorista')->trim()->value() : '';
 
         $query = Tratamiento::visiblesPara($usuario)
             ->with(['usuario:id,name', 'primerEscaneo', 'ultimoEscaneo.usuario:id,name'])
@@ -59,11 +63,13 @@ class TratamientoController extends Controller
                 'ultimo' => $t->ultimoEscaneo?->paraVista(),
             ]);
 
-        // Lista de laboratoristas disponibles para sugerir en el filtro
-        $laboratoristas = User::whereIn('rol', [Rol::Laboratorista, Rol::JefeLaboratorio])
-            ->where('activo', true)
-            ->orderBy('name')
-            ->pluck('name');
+        // Lista de laboratoristas para sugerir en el filtro, solo para el Jefe
+        $laboratoristas = $esJefe
+            ? User::whereIn('rol', [Rol::Laboratorista, Rol::JefeLaboratorio])
+                ->where('activo', true)
+                ->orderBy('name')
+                ->pluck('name')
+            : collect();
 
         return Inertia::render('laboratorio/tratamientos/index', [
             'tratamientos' => $tratamientos,
@@ -73,6 +79,7 @@ class TratamientoController extends Controller
                 'laboratorista' => $laboratorista,
             ],
             'laboratoristas' => $laboratoristas,
+            'puedeFiltrarPorLaboratorista' => $esJefe,
         ]);
     }
 
@@ -85,7 +92,10 @@ class TratamientoController extends Controller
         $usuario = $request->user();
 
         $buscar = $request->string('buscar')->trim()->value();
-        $laboratorista = $request->string('laboratorista')->trim()->value();
+        // Igual que en el historial: el laboratorista no filtra por laboratorista
+        $laboratorista = $usuario->tieneRol(Rol::JefeLaboratorio)
+            ? $request->string('laboratorista')->trim()->value()
+            : '';
 
         $query = Tratamiento::visiblesPara($usuario)
             ->with(['usuario:id,name', 'productor:id,name', 'primerEscaneo', 'ultimoEscaneo'])
@@ -112,12 +122,12 @@ class TratamientoController extends Controller
             fputcsv($salida, [
                 'ID',
                 'Tratamiento',
-                'Levadura',
-                'Duración',
                 'Temperatura',
                 'Variedad',
                 'Lote',
                 'Fecha Inicio',
+                'Fecha Término',
+                'Duración (días)',
                 'Estado',
                 'Responsable (Laboratorista)',
                 'Productor',
@@ -152,12 +162,12 @@ class TratamientoController extends Controller
                 fputcsv($salida, [
                     $t->id,
                     $t->nombre,
-                    $t->levadura ?? 'N/A',
-                    $t->duracion ?? 'N/A',
                     $t->temperatura ?? 'N/A',
                     $t->variedad ?? 'N/A',
                     $t->lote ?? 'N/A',
                     $t->fecha_inicio->format('d/m/Y'),
+                    $t->fecha_fin?->format('d/m/Y') ?? 'N/A',
+                    $t->duracionDias() ?? 'N/A',
                     ucfirst($t->estado),
                     $t->usuario->name,
                     $t->productor?->name ?? 'N/A',
@@ -197,12 +207,12 @@ class TratamientoController extends Controller
             // Ficha del tratamiento
             fputcsv($salida, ['REPORTE DE TRATAMIENTO - PROYECTO ESCALA'], escape: '\\');
             fputcsv($salida, ['Tratamiento', $tratamiento->nombre], escape: '\\');
-            fputcsv($salida, ['Levadura', $tratamiento->levadura ?? 'N/A'], escape: '\\');
-            fputcsv($salida, ['Duración', $tratamiento->duracion ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Temperatura', $tratamiento->temperatura ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Responsable', $tratamiento->usuario->name], escape: '\\');
             fputcsv($salida, ['Productor', $tratamiento->productor?->name ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Fecha Inicio', $tratamiento->fecha_inicio->format('d/m/Y')], escape: '\\');
+            fputcsv($salida, ['Fecha Término', $tratamiento->fecha_fin?->format('d/m/Y') ?? 'N/A'], escape: '\\');
+            fputcsv($salida, ['Duración (días)', $tratamiento->duracionDias() ?? 'N/A'], escape: '\\');
             fputcsv($salida, ['Estado', ucfirst($tratamiento->estado)], escape: '\\');
             fputcsv($salida, [], escape: '\\');
 
@@ -214,7 +224,6 @@ class TratamientoController extends Controller
                 'Hora',
                 'Porcentaje de Daño (%)',
                 'Nivel de Severidad',
-                'Etiqueta de Escala',
                 'Área Tallo (px)',
                 'Área Lesión (px)',
                 'Laboratorista',
@@ -228,7 +237,6 @@ class TratamientoController extends Controller
                     $e->created_at?->format('H:i') ?? 'N/A',
                     number_format($e->porcentaje, 2, '.', '').'%',
                     $e->nivel,
-                    $e->etiqueta,
                     $e->area_tallo_px,
                     $e->area_lesion_px,
                     $e->usuario->name,
@@ -248,26 +256,64 @@ class TratamientoController extends Controller
     {
         Gate::authorize('view', $tratamiento);
 
+        /** @var User $usuario */
+        $usuario = $request->user();
+
         $tratamiento->load(['usuario:id,name', 'productor:id,name']);
         $escaneos = $tratamiento->escaneos()
             ->with('usuario:id,name')
             ->oldest()
             ->oldest('id')
             ->get()
-            ->map(fn (Escaneo $e) => $e->paraVista());
+            ->map(function (Escaneo $e) use ($tratamiento, $usuario) {
+                // El tratamiento ya está cargado: se lo pasamos para que la política no
+                // vuelva a consultarlo una vez por escaneo
+                $e->setRelation('tratamiento', $tratamiento);
+
+                return [
+                    ...$e->paraVista(),
+                    'puede_eliminar' => $usuario->can('delete', $e),
+                ];
+            });
+
+        $puedeEditar = $usuario->can('update', $tratamiento);
 
         return Inertia::render('laboratorio/tratamientos/show', [
             'tratamiento' => [
                 ...$this->datos($tratamiento),
                 'productor' => $tratamiento->productor?->name,
                 'notas' => $tratamiento->notas,
-                'puede_agregar' => $request->user()?->can('agregarEscaneo', $tratamiento) ?? false,
-                'puede_eliminar' => $request->user()?->can('delete', $tratamiento) ?? false,
+                'puede_agregar' => $usuario->can('agregarEscaneo', $tratamiento),
+                'puede_editar' => $puedeEditar,
+                'puede_eliminar' => $usuario->can('delete', $tratamiento),
             ],
             'escaneos' => $escaneos,
             'ultimoNivel' => $this->ultimoNivel(),
-            'niveles' => Config::array('escala.niveles'),
+            // Opciones del formulario de edición, solo para quien puede editar
+            'temperaturas' => $puedeEditar ? Config::array('escala.temperaturas') : [],
         ]);
+    }
+
+    /**
+     * Corrige la ficha del tratamiento: nombre, condiciones, fechas, productor, notas
+     * y si sigue abierto a escaneos nuevos. Los escaneos ya guardados no se tocan.
+     */
+    public function update(ActualizarTratamientoRequest $request, Tratamiento $tratamiento): RedirectResponse
+    {
+        Gate::authorize('update', $tratamiento);
+
+        $datos = $request->validated();
+
+        // cerrado_at guarda cuándo se cerró; al reabrirlo vuelve a quedar vacío
+        if ($datos['estado'] !== $tratamiento->estado) {
+            $datos['cerrado_at'] = $datos['estado'] === Tratamiento::CERRADO ? now() : null;
+        }
+
+        $tratamiento->forceFill($datos)->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Tratamiento actualizado.']);
+
+        return to_route('laboratorio.tratamientos.show', $tratamiento);
     }
 
     /**
@@ -285,19 +331,19 @@ class TratamientoController extends Controller
     }
 
     /**
-     * @return array{id: int, nombre: string, levadura: string|null, duracion: string|null, temperatura: string|null, variedad: string|null, lote: string|null, fecha_inicio: string, estado: string, responsable: string}
+     * @return array{id: int, nombre: string, temperatura: string|null, variedad: string|null, lote: string|null, fecha_inicio: string, fecha_fin: string|null, duracion_dias: int|null, estado: string, responsable: string}
      */
     private function datos(Tratamiento $t): array
     {
         return [
             'id' => $t->id,
             'nombre' => $t->nombre,
-            'levadura' => $t->levadura,
-            'duracion' => $t->duracion,
             'temperatura' => $t->temperatura,
             'variedad' => $t->variedad,
             'lote' => $t->lote,
             'fecha_inicio' => $t->fecha_inicio->toDateString(),
+            'fecha_fin' => $t->fecha_fin?->toDateString(),
+            'duracion_dias' => $t->duracionDias(),
             'estado' => $t->estado,
             'responsable' => $t->usuario->name,
         ];

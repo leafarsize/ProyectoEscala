@@ -7,6 +7,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Variante "movil": el dispositivo se maneja con el dedo, así que trae cámara a
+ * mano (teléfono o tableta). En una PC con ratón no se muestra nada de cámara:
+ * ahí solo se sube un archivo, y achicar la ventana no cambia eso.
+ *
+ * Se usa como cualquier variante de Tailwind: `hidden movil:grid`.
+ */
+@custom-variant movil (@media (pointer: coarse));
+
 @theme {
     --font-sans:
         'Figtree', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',

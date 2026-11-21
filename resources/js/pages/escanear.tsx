@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, ReactNode } from 'react';
 import { toast } from 'sonner';
+import { NivelBadge } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -55,7 +56,6 @@ type Resultado = {
 type TratamientoOpcion = {
     id: number;
     nombre: string;
-    levadura: string | null;
     /** null en los tratamientos creados después de quitarlos del formulario */
     variedad: string | null;
     lote: string | null;
@@ -66,21 +66,24 @@ type DatosEscaneo = {
     imagen: File | null;
     tratamiento_id: string;
     nombre: string;
-    levadura: string;
-    duracion: string;
     temperatura: string;
+    /** Inicio y fin de la incubación (AAAA-MM-DD), elegidos en el calendario */
+    fecha_inicio: string;
+    fecha_fin: string;
     /** Identifica el tallo de la foto dentro del tratamiento */
     numero_cana: string;
 };
 
 type Modo = 'nuevo' | 'existente';
 
-/** Opciones fijas de incubación (config/escala.php) y sus valores por defecto */
+/** Condiciones de incubación (config/escala.php) y sus valores por defecto */
 type Condiciones = {
-    duraciones: string[];
-    duracion: string;
     temperaturas: string[];
     temperatura: string;
+    /** Hoy */
+    fecha_inicio: string;
+    /** Hoy + dias_por_defecto, solo como propuesta */
+    fecha_fin: string;
 };
 
 const FORMATOS = 'image/jpeg,image/png,image/webp';
@@ -104,9 +107,9 @@ export default function Escanear({
         imagen: null,
         tratamiento_id: tratamientoInicial ? String(tratamientoInicial) : '',
         nombre: '',
-        levadura: '',
-        duracion: condiciones.duracion,
         temperatura: condiciones.temperatura,
+        fecha_inicio: condiciones.fecha_inicio,
+        fecha_fin: condiciones.fecha_fin,
         numero_cana: '',
     });
     const [modo, setModo] = useState<Modo>(
@@ -142,9 +145,9 @@ export default function Escanear({
         http.clearErrors(
             'tratamiento_id',
             'nombre',
-            'levadura',
-            'duracion',
             'temperatura',
+            'fecha_inicio',
+            'fecha_fin',
         );
         // En un tratamiento nuevo no se envía tratamiento_id
         if (nuevo === 'nuevo') {
@@ -231,9 +234,9 @@ export default function Escanear({
                 imagen: null,
                 tratamiento_id: '',
                 nombre: '',
-                levadura: '',
-                duracion: condiciones.duracion,
                 temperatura: condiciones.temperatura,
+                fecha_inicio: condiciones.fecha_inicio,
+                fecha_fin: condiciones.fecha_fin,
                 numero_cana: '',
             });
             setModo('nuevo');
@@ -285,6 +288,7 @@ export default function Escanear({
 
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-6 md:py-8">
                 <Heading
+                    as="h1"
                     title="Escanear tallo"
                     description="Obtén el porcentaje de daño y el nivel de severidad de un tallo de caña."
                 />
@@ -320,6 +324,10 @@ export default function Escanear({
                                         src={vistaPrevia}
                                         analizando={http.processing}
                                         onQuitar={quitarFoto}
+                                        onFoto={elegirFoto}
+                                        onAbrirCamara={() =>
+                                            setVisorCamaraAbierto(true)
+                                        }
                                     />
                                 ) : (
                                     <ZonaFoto
@@ -368,7 +376,7 @@ export default function Escanear({
                 <VisorCamara
                     onFoto={(archivo) => {
                         setVisorCamaraAbierto(false);
-                        elegirFoto(archivo);
+                        void elegirFoto(archivo);
                     }}
                     onCerrar={() => setVisorCamaraAbierto(false)}
                 />
@@ -442,6 +450,7 @@ function SeccionTratamiento({
                         >
                             <Input
                                 id="nombre"
+                                placeholder="Ej. M. guilliermondii lote 3, o Testigo"
                                 value={datos.nombre}
                                 maxLength={255}
                                 disabled={deshabilitado}
@@ -451,56 +460,56 @@ function SeccionTratamiento({
                             />
                         </Campo>
 
-                        <Campo
-                            id="levadura"
-                            etiqueta="Levadura"
-                            error={errores.levadura}
-                        >
-                            <Input
-                                id="levadura"
-                                placeholder="Ej. M. guilliermondii, o Testigo si no lleva levadura"
-                                value={datos.levadura}
-                                maxLength={150}
-                                disabled={deshabilitado}
-                                onChange={(e) =>
-                                    onCambio('levadura', e.target.value)
-                                }
-                            />
-                        </Campo>
-
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Campo
-                                id="duracion"
-                                etiqueta="Duración"
-                                error={errores.duracion}
+                                id="fecha_inicio"
+                                etiqueta="Fecha de inicio"
+                                error={errores.fecha_inicio}
                             >
-                                <ListaOpciones
-                                    id="duracion"
-                                    valor={datos.duracion}
-                                    opciones={condiciones.duraciones}
-                                    deshabilitado={deshabilitado}
-                                    onCambio={(valor) =>
-                                        onCambio('duracion', valor)
+                                <Input
+                                    id="fecha_inicio"
+                                    type="date"
+                                    value={datos.fecha_inicio}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('fecha_inicio', e.target.value)
                                     }
                                 />
                             </Campo>
 
                             <Campo
-                                id="temperatura"
-                                etiqueta="Temperatura"
-                                error={errores.temperatura}
+                                id="fecha_fin"
+                                etiqueta="Fecha de término"
+                                error={errores.fecha_fin}
                             >
-                                <ListaOpciones
-                                    id="temperatura"
-                                    valor={datos.temperatura}
-                                    opciones={condiciones.temperaturas}
-                                    deshabilitado={deshabilitado}
-                                    onCambio={(valor) =>
-                                        onCambio('temperatura', valor)
+                                <Input
+                                    id="fecha_fin"
+                                    type="date"
+                                    min={datos.fecha_inicio || undefined}
+                                    value={datos.fecha_fin}
+                                    disabled={deshabilitado}
+                                    onChange={(e) =>
+                                        onCambio('fecha_fin', e.target.value)
                                     }
                                 />
                             </Campo>
                         </div>
+
+                        <Campo
+                            id="temperatura"
+                            etiqueta="Temperatura"
+                            error={errores.temperatura}
+                        >
+                            <ListaOpciones
+                                id="temperatura"
+                                valor={datos.temperatura}
+                                opciones={condiciones.temperaturas}
+                                deshabilitado={deshabilitado}
+                                onCambio={(valor) =>
+                                    onCambio('temperatura', valor)
+                                }
+                            />
+                        </Campo>
                     </>
                 ) : (
                     <Campo
@@ -521,12 +530,7 @@ function SeccionTratamiento({
                             <SelectContent>
                                 {tratamientos.map((t) => (
                                     <SelectItem key={t.id} value={String(t.id)}>
-                                        {[
-                                            t.nombre,
-                                            t.levadura,
-                                            t.variedad,
-                                            t.lote,
-                                        ]
+                                        {[t.nombre, t.variedad, t.lote]
                                             .filter(Boolean)
                                             .join(' · ')}{' '}
                                         ({t.escaneos}{' '}
@@ -652,16 +656,17 @@ function ZonaFoto({
 
     return (
         <div className="flex flex-col gap-4">
-            {/* Opciones de captura: Visor con marco guía o Cámara nativa */}
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {/* Opciones de captura: Visor con marco guía o Cámara nativa.
+                En PC no aparecen: ahí solo se sube un archivo (ver variante "movil"). */}
+            <div className="hidden grid-cols-1 gap-2.5 sm:grid-cols-2 movil:grid">
                 <Button
                     type="button"
                     size="lg"
                     onClick={onAbrirCamara}
-                    className="group h-16 w-full rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 active:scale-[0.98]"
+                    className="h-16 w-full rounded-xl font-semibold"
                 >
-                    <Camera className="mr-2 size-5 transition-transform group-hover:scale-110" />
-                    <span>Visor con marco (10 × 15)</span>
+                    <Camera className="size-5" />
+                    Abrir cámara con marco
                 </Button>
 
                 <Button
@@ -669,10 +674,10 @@ function ZonaFoto({
                     variant="outline"
                     size="lg"
                     onClick={() => inputNativaDirectoRef.current?.click()}
-                    className="h-16 w-full rounded-2xl border-2 text-sm font-semibold transition-all hover:bg-muted active:scale-[0.98]"
+                    className="h-16 w-full rounded-xl"
                 >
-                    <Smartphone className="mr-2 size-5 text-primary" />
-                    <span>Cámara nativa del celular</span>
+                    <Smartphone className="size-5" />
+                    Cámara del celular
                 </Button>
             </div>
 
@@ -685,12 +690,6 @@ function ZonaFoto({
                 onChange={alSeleccionar}
                 className="sr-only"
             />
-
-            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase">
-                <span className="h-px flex-1 bg-border" />
-                <span>o seleccionar desde galería</span>
-                <span className="h-px flex-1 bg-border" />
-            </div>
 
             {/* Zona para elegir archivo o arrastrar */}
             <label
@@ -708,16 +707,15 @@ function ZonaFoto({
                         : 'border-muted-foreground/25',
                 )}
             >
-                <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                    <ImageUp className="size-5 text-muted-foreground" />
+                <span className="inline-flex min-h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground movil:bg-muted movil:text-foreground">
+                    <ImageUp className="size-4" />
+                    Subir imagen
                 </span>
-                <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">
-                        Seleccionar foto existente
+                <span className="text-xs text-muted-foreground">
+                    <span className="movil:hidden">
+                        Arrastra una imagen aquí ·{' '}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                        JPG, PNG o WEBP
-                    </span>
+                    JPG, PNG o WEBP
                 </span>
                 <input
                     type="file"
@@ -729,7 +727,7 @@ function ZonaFoto({
 
             <p className="text-center text-xs text-muted-foreground">
                 Recomendación: corte longitudinal de entrenudo de 10 × 15 cm a
-                ~30 cm de distancia sobre fondo blanco liso.
+                30 cm de distancia sobre fondo blanco liso.
             </p>
         </div>
     );
@@ -739,38 +737,111 @@ function VistaPrevia({
     src,
     analizando,
     onQuitar,
+    onFoto,
+    onAbrirCamara,
 }: {
     src: string;
     analizando: boolean;
     onQuitar: () => void;
+    onFoto: (archivo: File) => void;
+    onAbrirCamara: () => void;
 }) {
+    const inputNativaRef = useRef<HTMLInputElement>(null);
+    const inputGaleriaRef = useRef<HTMLInputElement>(null);
+
+    const alSeleccionar = (e: ChangeEvent<HTMLInputElement>) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo
+
+        if (archivo) {
+            onFoto(archivo);
+        }
+    };
+
     return (
-        <div className="relative overflow-hidden rounded-xl bg-muted">
-            <img
-                src={src}
-                alt="Vista previa del tallo"
-                className={cn(
-                    'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
-                    analizando && 'opacity-40',
+        <div className="flex flex-col gap-3">
+            <div className="relative overflow-hidden rounded-xl bg-muted">
+                <img
+                    src={src}
+                    alt="Vista previa del tallo"
+                    className={cn(
+                        'mx-auto max-h-[26rem] w-full object-contain transition-opacity',
+                        analizando && 'opacity-40',
+                    )}
+                />
+
+                {analizando ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
+                        <Spinner className="size-6" />
+                        Analizando tallo…
+                    </div>
+                ) : (
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onQuitar}
+                        className="absolute top-3 right-3 shadow-sm"
+                    >
+                        <X />
+                        Quitar
+                    </Button>
                 )}
+            </div>
+
+            {/* Si la foto salió mal, se corrige aquí mismo sin perder el tratamiento */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+                {/* Las dos opciones de cámara solo en teléfono o tableta.
+                    "contents" deja que los botones sigan siendo hijos del flex. */}
+                <div className="hidden movil:contents">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={analizando}
+                        onClick={onAbrirCamara}
+                        className="sm:flex-1"
+                    >
+                        <RotateCcw />
+                        Volver a tomar
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={analizando}
+                        onClick={() => inputNativaRef.current?.click()}
+                        className="sm:flex-1"
+                    >
+                        <Smartphone />
+                        Cámara del celular
+                    </Button>
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={analizando}
+                    onClick={() => inputGaleriaRef.current?.click()}
+                    className="sm:flex-1"
+                >
+                    <ImageUp />
+                    Elegir otra foto
+                </Button>
+            </div>
+
+            <input
+                ref={inputNativaRef}
+                type="file"
+                accept={FORMATOS}
+                capture="environment"
+                onChange={alSeleccionar}
+                className="sr-only"
             />
 
-            {analizando ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm font-medium">
-                    <Spinner className="size-6" />
-                    Analizando tallo…
-                </div>
-            ) : (
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={onQuitar}
-                    className="absolute top-3 right-3 shadow-sm"
-                >
-                    <X />
-                    Cambiar
-                </Button>
-            )}
+            <input
+                ref={inputGaleriaRef}
+                type="file"
+                accept={FORMATOS}
+                onChange={alSeleccionar}
+                className="sr-only"
+            />
         </div>
     );
 }
@@ -796,13 +867,14 @@ function VistaResultado({
                     <Medidor porcentaje={resultado.porcentaje} />
 
                     <div className="flex w-full flex-col gap-4 text-center sm:text-left">
-                        <div className="flex flex-col gap-1">
-                            <p className="text-sm text-muted-foreground">
-                                Nivel {resultado.nivel} de {ultimoNivel}
-                            </p>
-                            <p className="text-2xl font-semibold tracking-tight">
+                        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                            <p className="text-base font-semibold">
                                 {resultado.etiqueta}
                             </p>
+                            <NivelBadge
+                                nivel={resultado.nivel}
+                                ultimoNivel={ultimoNivel}
+                            />
                         </div>
 
                         <EscalaSeveridad

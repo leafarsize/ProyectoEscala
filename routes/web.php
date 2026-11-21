@@ -37,10 +37,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('tratamientos/exportar', [TratamientoController::class, 'exportar'])->name('tratamientos.exportar');
         Route::get('tratamientos/{tratamiento}/exportar', [TratamientoController::class, 'exportarDetalle'])->name('tratamientos.exportar-detalle');
         Route::get('tratamientos/{tratamiento}', [TratamientoController::class, 'show'])->name('tratamientos.show');
+        // Corregir la ficha del ensayo (nombre, condiciones, fechas, notas, estado)
+        Route::put('tratamientos/{tratamiento}', [TratamientoController::class, 'update'])->name('tratamientos.update');
         Route::delete('tratamientos/{tratamiento}', [TratamientoController::class, 'destroy'])->name('tratamientos.destroy');
         Route::get('escaneos/{escaneo}/imagen/{tipo}', [EscaneoController::class, 'imagen'])
             ->whereIn('tipo', ['original', 'resaltada'])
             ->name('escaneos.imagen');
+        // Descartar un escaneo que no sirve, sin tocar el resto del tratamiento
+        Route::delete('escaneos/{escaneo}', [EscaneoController::class, 'destroy'])->name('escaneos.destroy');
     });
 
     // Solo Productor

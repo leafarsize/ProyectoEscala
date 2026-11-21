@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import UsuariosController from '@/actions/App/Http/Controllers/UsuariosController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -121,8 +122,9 @@ export default function Usuarios({
             <div className="flex h-full flex-1 flex-col gap-6 p-5 md:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
+                        as="h1"
                         title="Usuarios"
-                        description="Toca una fila para editar la cuenta, cambiar el rol o eliminarla."
+                        description="Toca una fila para editar la cuenta, cambiar el rol, asignarle una contraseña nueva o eliminarla."
                     />
                     <Button asChild>
                         <Link href={rutaCrear()}>
@@ -412,7 +414,7 @@ function ModalUsuario({
                 <DialogDescription>
                     {usuario.es_tu_cuenta
                         ? 'Es tu propia cuenta: no puedes cambiar tu rol ni desactivarte.'
-                        : 'Cambia los datos, el rol o el estado de la cuenta.'}
+                        : 'Cambia los datos, el rol, el estado de la cuenta o asígnale una contraseña nueva.'}
                 </DialogDescription>
             </DialogHeader>
 
@@ -517,6 +519,37 @@ function ModalUsuario({
                                 </div>
                             </div>
                         )}
+
+                        {/* El Jefe asigna la contraseña: ya no hay recuperación por correo */}
+                        <div className="grid gap-5 border-t pt-5 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-password">
+                                    Contraseña nueva
+                                </Label>
+                                <PasswordInput
+                                    id="editar-password"
+                                    name="password"
+                                    autoComplete="new-password"
+                                    placeholder="Déjala vacía para no cambiarla"
+                                />
+                                <InputError message={errors.password} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="editar-password-confirmation">
+                                    Confirmar contraseña
+                                </Label>
+                                <PasswordInput
+                                    id="editar-password-confirmation"
+                                    name="password_confirmation"
+                                    autoComplete="new-password"
+                                    placeholder="Repite la contraseña nueva"
+                                />
+                                <InputError
+                                    message={errors.password_confirmation}
+                                />
+                            </div>
+                        </div>
 
                         <DialogFooter className="gap-2 sm:justify-between">
                             {usuario.puede_eliminar ? (
