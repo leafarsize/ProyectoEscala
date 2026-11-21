@@ -67,6 +67,20 @@ class HistorialEscaneos
     }
 
     /**
+     * Borra un escaneo suelto (una foto que no sirve) con sus dos imágenes.
+     * El tratamiento se queda como está, con los demás escaneos.
+     */
+    public function eliminarEscaneo(Escaneo $escaneo): void
+    {
+        $rutas = [$escaneo->imagen_original, $escaneo->imagen_resaltada];
+
+        $escaneo->delete();
+
+        // Las fotos se borran tras confirmar la BD, para no perderlas si el borrado falla
+        Storage::disk(self::DISCO)->delete($rutas);
+    }
+
+    /**
      * Borra el tratamiento con todos sus escaneos y las imágenes de cada uno.
      *
      * Los escaneos no caen en cascada (tratamiento_id es nullOnDelete), así que se

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AnalizadorTallo;
 use App\Services\HistorialEscaneos;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -134,6 +135,25 @@ class EscaneoController extends Controller
                 'escaneos' => $tratamiento->escaneos()->count(),
             ],
         ]);
+    }
+
+    /**
+     * Borra un escaneo que no sirve (foto mal tomada, tallo repetido) con sus imágenes.
+     * El tratamiento y los demás escaneos se quedan como están.
+     */
+    public function destroy(Escaneo $escaneo, HistorialEscaneos $historial): RedirectResponse
+    {
+        Gate::authorize('delete', $escaneo);
+
+        $tratamiento = $escaneo->tratamiento;
+
+        $historial->eliminarEscaneo($escaneo);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Escaneo eliminado.']);
+
+        return $tratamiento === null
+            ? to_route('laboratorio.tratamientos.index')
+            : to_route('laboratorio.tratamientos.show', $tratamiento);
     }
 
     /**

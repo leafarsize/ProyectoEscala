@@ -133,6 +133,7 @@ export default function Tratamientos({
                 {/* Cabecera y botón nuevo */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
+                        as="h1"
                         title="Tratamientos"
                         description="Historial de tratamientos y la evolución del daño en cada uno."
                     />

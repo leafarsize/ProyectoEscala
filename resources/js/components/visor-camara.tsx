@@ -1,6 +1,6 @@
 import {
     Camera,
-    FlipHorizontal,
+    Check,
     ImageUp,
     Info,
     RotateCcw,
@@ -33,6 +33,36 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
     const [distancia, setDistancia] = useState<ModoDistancia>('30cm');
+    // Foto recién tomada, a la espera de que la persona la acepte o la repita
+    const [capturada, setCapturada] = useState<{
+        archivo: File;
+        url: string;
+    } | null>(null);
+
+    // Liberar la URL temporal al repetir la foto, al aceptarla o al cerrar el visor
+    useEffect(() => {
+        return () => {
+            if (capturada) {
+                URL.revokeObjectURL(capturada.url);
+            }
+        };
+    }, [capturada]);
+
+    /** La foto no se entrega al instante: primero se revisa, por si salió mal. */
+    const revisar = (archivo: File) => {
+        setCapturada({ archivo, url: URL.createObjectURL(archivo) });
+    };
+
+    const repetir = () => setCapturada(null);
+
+    const usarFoto = () => {
+        if (!capturada) {
+            return;
+        }
+
+        detenerCamara();
+        onFoto(capturada.archivo);
+    };
 
     const detenerCamara = () => {
         if (streamRef.current) {
@@ -205,7 +235,7 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
 
     useEffect(() => {
         isMountedRef.current = true;
-        iniciarCamara(facingMode);
+        void iniciarCamara(facingMode);
 
         return () => {
             isMountedRef.current = false;
@@ -242,8 +272,8 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                 const archivo = new File([blob], `tallo_${Date.now()}.jpg`, {
                     type: 'image/jpeg',
                 });
-                detenerCamara();
-                onFoto(archivo);
+                // La cámara sigue encendida: si repite la foto, el visor está listo
+                revisar(archivo);
             },
             'image/jpeg',
             0.95,
@@ -252,9 +282,10 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
 
     const handleArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
         const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo
+
         if (archivo) {
-            detenerCamara();
-            onFoto(archivo);
+            revisar(archivo);
         }
     };
 
@@ -276,42 +307,54 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                     <X className="size-6" />
                 </Button>
 
-                {/* Selector de distancia de toma */}
-                <div className="flex items-center rounded-full bg-black/60 p-1 backdrop-blur-md">
-                    <button
-                        type="button"
-                        onClick={() => setDistancia('30cm')}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                            distancia === '30cm'
-                                ? 'bg-primary text-white shadow'
-                                : 'text-neutral-300 hover:text-white'
-                        }`}
-                    >
-                         ~30 cm (Normal)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setDistancia('20cm')}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                            distancia === '20cm'
-                                ? 'bg-primary text-white shadow'
-                                : 'text-neutral-300 hover:text-white'
-                        }`}
-                    >
-                         ~20 cm (Cerca)
-                    </button>
-                </div>
+                {capturada ? (
+                    <>
+                        <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold backdrop-blur-md">
+                            Revisar foto
+                        </span>
+                        {/* Hueco para que el botón de cerrar no se descentre */}
+                        <span aria-hidden="true" className="size-11" />
+                    </>
+                ) : (
+                    <>
+                        {/* Selector de distancia de toma */}
+                        <div className="flex items-center rounded-full bg-black/60 p-1 backdrop-blur-md">
+                            <button
+                                type="button"
+                                onClick={() => setDistancia('30cm')}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                    distancia === '30cm'
+                                        ? 'bg-primary text-white shadow'
+                                        : 'text-neutral-300 hover:text-white'
+                                }`}
+                            >
+                                ~30 cm (Normal)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDistancia('20cm')}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                    distancia === '20cm'
+                                        ? 'bg-primary text-white shadow'
+                                        : 'text-neutral-300 hover:text-white'
+                                }`}
+                            >
+                                ~20 cm (Cerca)
+                            </button>
+                        </div>
 
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={cambiarCamara}
-                    className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
-                    aria-label="Cambiar cámara"
-                >
-                    <SwitchCamera className="size-6" />
-                </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={cambiarCamara}
+                            className="size-11 rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70"
+                            aria-label="Cambiar cámara"
+                        >
+                            <SwitchCamera className="size-6" />
+                        </Button>
+                    </>
+                )}
             </div>
 
             {/* Contenedor del video con el marco guía de 10 cm de ancho por 15 cm de alto */}
@@ -330,6 +373,16 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                         <p className="text-sm font-medium text-neutral-200">
                             Iniciando cámara…
                         </p>
+                    </div>
+                )}
+
+                {capturada && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black">
+                        <img
+                            src={capturada.url}
+                            alt="Foto que acabas de tomar"
+                            className="h-full w-full object-contain"
+                        />
                     </div>
                 )}
 
@@ -430,48 +483,77 @@ export function VisorCamara({ onFoto, onCerrar }: Props) {
                 )}
             </div>
 
-            {/* Barra inferior con los disparadores de foto */}
-            <div className="relative z-20 flex items-center justify-around bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 pt-3 pb-8">
-                {/* Opción 1: Abrir cámara nativa del sistema */}
-                <button
-                    type="button"
-                    onClick={() => inputNativaRef.current?.click()}
-                    className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
-                    title="Usar app de cámara de tu celular"
-                >
-                    <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
-                        <Smartphone className="size-5" />
-                    </span>
-                    <span className="text-[11px] font-medium">
-                        Cámara celular
-                    </span>
-                </button>
+            {/* Barra inferior: revisar la foto tomada o, si no hay, los disparadores */}
+            {capturada ? (
+                <div className="relative z-40 flex flex-col items-center gap-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 pt-4 pb-8">
+                    <p className="text-xs font-medium text-white/80">
+                        ¿Se ve bien el tallo completo y enfocado?
+                    </p>
+                    <div className="flex w-full max-w-md items-center gap-3">
+                        <Button
+                            type="button"
+                            size="lg"
+                            variant="secondary"
+                            onClick={repetir}
+                            className="h-12 flex-1 font-semibold"
+                        >
+                            <RotateCcw className="mr-2 size-5" />
+                            Volver a tomar
+                        </Button>
+                        <Button
+                            type="button"
+                            size="lg"
+                            onClick={usarFoto}
+                            className="h-12 flex-1 bg-primary font-bold text-primary-foreground shadow-md shadow-primary/25"
+                        >
+                            <Check className="mr-2 size-5" />
+                            Usar esta foto
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="relative z-20 flex items-center justify-around bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 pt-3 pb-8">
+                    {/* Opción 1: Abrir cámara nativa del sistema */}
+                    <button
+                        type="button"
+                        onClick={() => inputNativaRef.current?.click()}
+                        className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
+                        title="Usar app de cámara de tu celular"
+                    >
+                        <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
+                            <Smartphone className="size-5" />
+                        </span>
+                        <span className="text-[11px] font-medium">
+                            Cámara celular
+                        </span>
+                    </button>
 
-                {/* Opción 2: Disparador central del visor en vivo */}
-                <button
-                    type="button"
-                    disabled={cargando || !!error}
-                    onClick={capturarFoto}
-                    aria-label="Tomar foto con encuadre"
-                    className="group relative flex size-20 items-center justify-center rounded-full border-4 border-white p-1 transition-transform active:scale-95 disabled:opacity-40"
-                >
-                    <span className="flex size-full items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 transition-colors group-hover:bg-primary/90">
-                        <Camera className="size-8" />
-                    </span>
-                </button>
+                    {/* Opción 2: Disparador central del visor en vivo */}
+                    <button
+                        type="button"
+                        disabled={cargando || !!error}
+                        onClick={capturarFoto}
+                        aria-label="Tomar foto con encuadre"
+                        className="group relative flex size-20 items-center justify-center rounded-full border-4 border-white p-1 transition-transform active:scale-95 disabled:opacity-40"
+                    >
+                        <span className="flex size-full items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40 transition-colors group-hover:bg-primary/90">
+                            <Camera className="size-8" />
+                        </span>
+                    </button>
 
-                {/* Opción 3: Galería */}
-                <button
-                    type="button"
-                    onClick={() => inputGaleriaRef.current?.click()}
-                    className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
-                >
-                    <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
-                        <ImageUp className="size-5" />
-                    </span>
-                    <span className="text-[11px] font-medium">Galería</span>
-                </button>
-            </div>
+                    {/* Opción 3: Galería */}
+                    <button
+                        type="button"
+                        onClick={() => inputGaleriaRef.current?.click()}
+                        className="flex flex-col items-center gap-1 text-xs text-white/80 transition-opacity hover:text-white active:opacity-70"
+                    >
+                        <span className="flex size-11 items-center justify-center rounded-full bg-white/20 backdrop-blur-md">
+                            <ImageUp className="size-5" />
+                        </span>
+                        <span className="text-[11px] font-medium">Galería</span>
+                    </button>
+                </div>
+            )}
 
             {/* Input oculto para cámara nativa del celular (capture="environment") */}
             <input

@@ -122,6 +122,7 @@ export default function Usuarios({
             <div className="flex h-full flex-1 flex-col gap-6 p-5 md:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <Heading
+                        as="h1"
                         title="Usuarios"
                         description="Toca una fila para editar la cuenta, cambiar el rol, asignarle una contraseña nueva o eliminarla."
                     />

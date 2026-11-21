@@ -138,11 +138,24 @@ class Tratamiento extends Model
     }
 
     /**
+     * Respuestas ya consultadas de tieneAccesoVigente(), por id de usuario.
+     *
+     * @var array<int, bool>
+     */
+    private array $accesoVigente = [];
+
+    /**
      * ¿El usuario tiene un acceso temporal vigente a este tratamiento?
+     *
+     * Se recuerda durante la petición porque el detalle pregunta los permisos de
+     * cada escaneo: si no, repetiría la misma consulta una vez por escaneo.
      */
     public function tieneAccesoVigente(User $usuario): bool
     {
-        return $this->accesos()->vigentes()->where('usuario_id', $usuario->id)->exists();
+        return $this->accesoVigente[$usuario->id] ??= $this->accesos()
+            ->vigentes()
+            ->where('usuario_id', $usuario->id)
+            ->exists();
     }
 
     /**

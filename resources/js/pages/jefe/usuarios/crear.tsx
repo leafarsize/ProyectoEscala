@@ -27,6 +27,7 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
             <div className="flex h-full flex-1 flex-col items-center p-5 md:p-8">
                 <div className="flex w-full max-w-xl flex-col gap-6">
                     <Heading
+                        as="h1"
                         title="Nuevo usuario"
                         description="La contraseña es temporal: tendrás que comunicársela al usuario."
                     />

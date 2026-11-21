@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Rol;
+use App\Http\Requests\ActualizarTratamientoRequest;
 use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
@@ -223,7 +224,6 @@ class TratamientoController extends Controller
                 'Hora',
                 'Porcentaje de Daño (%)',
                 'Nivel de Severidad',
-                'Etiqueta de Escala',
                 'Área Tallo (px)',
                 'Área Lesión (px)',
                 'Laboratorista',
@@ -237,7 +237,6 @@ class TratamientoController extends Controller
                     $e->created_at?->format('H:i') ?? 'N/A',
                     number_format($e->porcentaje, 2, '.', '').'%',
                     $e->nivel,
-                    $e->etiqueta,
                     $e->area_tallo_px,
                     $e->area_lesion_px,
                     $e->usuario->name,
@@ -257,26 +256,64 @@ class TratamientoController extends Controller
     {
         Gate::authorize('view', $tratamiento);
 
+        /** @var User $usuario */
+        $usuario = $request->user();
+
         $tratamiento->load(['usuario:id,name', 'productor:id,name']);
         $escaneos = $tratamiento->escaneos()
             ->with('usuario:id,name')
             ->oldest()
             ->oldest('id')
             ->get()
-            ->map(fn (Escaneo $e) => $e->paraVista());
+            ->map(function (Escaneo $e) use ($tratamiento, $usuario) {
+                // El tratamiento ya está cargado: se lo pasamos para que la política no
+                // vuelva a consultarlo una vez por escaneo
+                $e->setRelation('tratamiento', $tratamiento);
+
+                return [
+                    ...$e->paraVista(),
+                    'puede_eliminar' => $usuario->can('delete', $e),
+                ];
+            });
+
+        $puedeEditar = $usuario->can('update', $tratamiento);
 
         return Inertia::render('laboratorio/tratamientos/show', [
             'tratamiento' => [
                 ...$this->datos($tratamiento),
                 'productor' => $tratamiento->productor?->name,
                 'notas' => $tratamiento->notas,
-                'puede_agregar' => $request->user()?->can('agregarEscaneo', $tratamiento) ?? false,
-                'puede_eliminar' => $request->user()?->can('delete', $tratamiento) ?? false,
+                'puede_agregar' => $usuario->can('agregarEscaneo', $tratamiento),
+                'puede_editar' => $puedeEditar,
+                'puede_eliminar' => $usuario->can('delete', $tratamiento),
             ],
             'escaneos' => $escaneos,
             'ultimoNivel' => $this->ultimoNivel(),
-            'niveles' => Config::array('escala.niveles'),
+            // Opciones del formulario de edición, solo para quien puede editar
+            'temperaturas' => $puedeEditar ? Config::array('escala.temperaturas') : [],
         ]);
+    }
+
+    /**
+     * Corrige la ficha del tratamiento: nombre, condiciones, fechas, productor, notas
+     * y si sigue abierto a escaneos nuevos. Los escaneos ya guardados no se tocan.
+     */
+    public function update(ActualizarTratamientoRequest $request, Tratamiento $tratamiento): RedirectResponse
+    {
+        Gate::authorize('update', $tratamiento);
+
+        $datos = $request->validated();
+
+        // cerrado_at guarda cuándo se cerró; al reabrirlo vuelve a quedar vacío
+        if ($datos['estado'] !== $tratamiento->estado) {
+            $datos['cerrado_at'] = $datos['estado'] === Tratamiento::CERRADO ? now() : null;
+        }
+
+        $tratamiento->forceFill($datos)->save();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Tratamiento actualizado.']);
+
+        return to_route('laboratorio.tratamientos.show', $tratamiento);
     }
 
     /**
