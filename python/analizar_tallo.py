@@ -19,14 +19,14 @@
 #   1) Segmenta el tallo: con la transparencia del PNG si la tiene (así vienen las imágenes
 #      de referencia de Natalia) o, si no, separándolo del color del fondo, que se estima en
 #      la orilla de la foto (sirve para fondo blanco, negro o de cualquier color liso).
-#   2) Toma como referencia el tejido sano de ESA foto (percentil alto de L* y mediana de a*)
-#      y marca como lesión lo que es claramente más oscuro (necrosis) o más rojizo (halo).
-#      Al ser relativo, no depende de la iluminación de la foto.
+#   2) Aplica límites de luminosidad y cromaticidad en LAB para seleccionar rojos,
+#      tonos casi negros y marrones oscuros dentro del tallo.
 #
 # Por qué no Otsu (docs/lesiones3.py): Otsu siempre parte la muestra en dos grupos, así que un
 # tallo sano o con una lesión diminuta sale con mucho "daño" (la imagen 0 de la escala da
 # 14.86 % y tallos casi sanos llegan a 85 %). Comparación completa: python/evaluacion/.
 
+import argparse
 import base64
 import json
 import sys
@@ -43,12 +43,6 @@ DISTANCIA_FONDO = 18
 # Ancho de la orilla de la foto (fracción del lado menor) usada para estimar el color del fondo
 ORILLA_FONDO = 0.03
 
-# Referencia de tejido sano: percentil de L* dentro del tallo (la mayor parte del corte está sana)
-PERCENTIL_SANO = 85
-# Lesión = L* al menos esto por debajo del tejido sano (necrosis, manchas oscuras)
-OSCURO_MIN = 20
-# ... o a* al menos esto por encima del tejido sano (halo rojo / marrón)
-ROJIZO_MIN = 8
 # Manchas más pequeñas que esto (px, ya reducida la imagen) se consideran ruido
 AREA_LESION_MIN = 40
 
@@ -175,12 +169,16 @@ def validar_calidad(bgr, mascara_tallo):
 
 def segmentar_lesiones(lab, mascara_tallo):
     dentro = mascara_tallo > 0
-    l_sano = np.percentile(lab[:, :, 0][dentro], PERCENTIL_SANO)
-    a_sano = np.median(lab[:, :, 1][dentro])
-
-    oscuro = lab[:, :, 0] <= l_sano - OSCURO_MIN
-    rojizo = lab[:, :, 1] >= a_sano + ROJIZO_MIN
-    lesion = ((oscuro | rojizo) & dentro).astype(np.uint8) * 255
+    luz, rojo, amarillo = cv2.split(lab)
+    # Negro casi neutro. Una sombra gris de luminosidad media queda fuera.
+    negro = (luz <= 26) & (np.hypot(rojo, amarillo) <= 23)
+    # Rojo definido: el eje rojo debe predominar frente al amarillo del tejido sano.
+    rojizo = (rojo >= 26) & (rojo >= 0.90 * amarillo) & (amarillo >= -6) & (luz <= 62)
+    # Para el marrón se exige un tono cálido Y un límite absoluto de luminosidad:
+    # así un beige rodeado de fibras muy claras no se convierte en lesión.
+    calido = (amarillo >= 6) & (rojo >= 0.30 * amarillo)
+    marron = calido & (((luz <= 46) & (rojo >= 7)) | ((luz <= 32) & (rojo >= 4)))
+    lesion = ((negro | rojizo | marron) & dentro).astype(np.uint8) * 255
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, K_LESION)
     lesion = cv2.morphologyEx(lesion, cv2.MORPH_OPEN, kernel)
@@ -208,7 +206,7 @@ def imagen_resaltada(bgr, mascara_lesion, contorno):
     return "data:image/jpeg;base64," + base64.b64encode(jpg.tobytes()).decode()
 
 
-def medir(ruta: str) -> dict:
+def medir(ruta: str, correccion=None) -> dict:
     """Análisis completo; devuelve también las máscaras (las usa python/evaluacion)."""
     bgr, mascara_alpha = reducir(*leer_imagen(ruta))
     if mascara_alpha is not None:
@@ -219,7 +217,13 @@ def medir(ruta: str) -> dict:
     lab = lab_real(bgr)
     mascara_tallo, contorno = segmentar_tallo(lab, mascara_alpha)
     validar_calidad(bgr, mascara_tallo)
-    mascara_lesion = segmentar_lesiones(lab, mascara_tallo)
+    if correccion is None:
+        mascara_lesion = segmentar_lesiones(lab, mascara_tallo)
+    else:
+        editada = cv2.imdecode(np.fromfile(correccion, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        if editada is None or editada.shape != mascara_tallo.shape:
+            raise FotoNoValida("La máscara corregida debe tener el mismo tamaño que la foto analizada.")
+        mascara_lesion = np.where((editada >= 128) & (mascara_tallo > 0), 255, 0).astype(np.uint8)
 
     area_tallo = int(cv2.countNonZero(mascara_tallo))
     area_lesion = int(cv2.countNonZero(mascara_lesion))
@@ -235,8 +239,20 @@ def medir(ruta: str) -> dict:
     }
 
 
-def analizar(ruta: str) -> dict:
-    r = medir(ruta)
+def analizar(ruta: str, revisar=False, correccion=None) -> dict:
+    r = medir(ruta, correccion)
+    if revisar:
+        # Un PNG sin pérdidas: 0 = fondo, 128 = tallo sano, 255 = daño.
+        mapa = np.where(r["mascara_tallo"] > 0, 128, 0).astype(np.uint8)
+        mapa[r["mascara_lesion"] > 0] = 255
+        _, png = cv2.imencode(".png", mapa)
+        _, foto = cv2.imencode(".jpg", r["bgr"], [cv2.IMWRITE_JPEG_QUALITY, 92])
+        return {
+            "mapa_revision": "data:image/png;base64," + base64.b64encode(png).decode(),
+            "imagen_base": "data:image/jpeg;base64," + base64.b64encode(foto).decode(),
+            "area_tallo_px": r["area_tallo_px"],
+            "area_lesion_px": r["area_lesion_px"],
+        }
     return {
         "porcentaje": r["porcentaje"],
         "area_tallo_px": r["area_tallo_px"],
@@ -246,12 +262,15 @@ def analizar(ruta: str) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Uso: python analizar_tallo.py <ruta_imagen>", file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser()
+    parser.add_argument("imagen")
+    opciones = parser.add_mutually_exclusive_group()
+    opciones.add_argument("--revisar", action="store_true")
+    opciones.add_argument("--mascara")
+    args = parser.parse_args()
 
     try:
-        resultado = analizar(sys.argv[1])
+        resultado = analizar(args.imagen, args.revisar, args.mascara)
     except FotoNoValida as e:
         # ensure_ascii (por defecto) escapa los acentos; así no dependen de la codificación de la consola
         print(json.dumps({"error": str(e)}))

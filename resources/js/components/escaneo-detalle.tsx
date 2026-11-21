@@ -12,6 +12,12 @@ import {
 } from '@/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
+export type NivelSeveridad = {
+    nivel: number;
+    etiqueta: string;
+    hasta: number | null;
+};
+
 /** Escaneo tal como lo envía Escaneo::paraVista() */
 export type EscaneoVista = {
     id: number;

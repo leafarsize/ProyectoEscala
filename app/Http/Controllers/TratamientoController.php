@@ -7,7 +7,10 @@ use App\Http\Requests\ActualizarTratamientoRequest;
 use App\Models\Escaneo;
 use App\Models\Tratamiento;
 use App\Models\User;
+use App\Services\AnalizadorTallo;
 use App\Services\HistorialEscaneos;
+use App\Services\ResumenDano;
+use App\Support\RangoFechas;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -26,7 +29,8 @@ class TratamientoController extends Controller
 
     /**
      * Historial: los tratamientos que el usuario puede ver, el más reciente primero.
-     * Permite filtrar por nombre de tratamiento y nombre de laboratorista.
+     * Permite filtrar por nombre de tratamiento, nombre de laboratorista y rango
+     * de fechas de inicio.
      */
     public function index(Request $request): Response
     {
@@ -38,9 +42,11 @@ class TratamientoController extends Controller
         // único que necesita filtrar por laboratorista. Al laboratorista se le ignora.
         $esJefe = $usuario->tieneRol(Rol::JefeLaboratorio);
         $laboratorista = $esJefe ? $request->string('laboratorista')->trim()->value() : '';
+        // Rango por fecha de inicio del tratamiento, igual que en la comparación
+        $rango = RangoFechas::deRequest($request);
 
         $query = Tratamiento::visiblesPara($usuario)
-            ->with(['usuario:id,name', 'primerEscaneo', 'ultimoEscaneo.usuario:id,name'])
+            ->with(['usuario:id,name', 'ultimoEscaneo.usuario:id,name'])
             ->withCount('escaneos');
 
         if ($buscar !== '') {
@@ -51,17 +57,35 @@ class TratamientoController extends Controller
             $query->whereHas('usuario', fn ($q) => $q->where('name', 'like', "%{$laboratorista}%"));
         }
 
-        $tratamientos = $query
-            ->latest()
-            ->latest('id')
-            ->paginate(self::POR_PAGINA)
-            ->withQueryString()
-            ->through(fn (Tratamiento $t) => [
+        RangoFechas::aplicar($query, $rango);
+
+        $ordenada = $query->latest()->latest('id');
+
+        // Con "paginar=0" se ven todos de corrido: una sola página con todo lo que
+        // haya, en vez de tener que ir avanzando de 10 en 10.
+        $paginar = $request->boolean('paginar', true);
+        $porPagina = $paginar
+            ? self::POR_PAGINA
+            : max($ordenada->clone()->count(), 1);
+
+        $pagina = $ordenada->paginate($porPagina)->withQueryString();
+
+        // Los resúmenes de la página en una sola consulta, no uno por tarjeta
+        $resumenes = ResumenDano::porTratamiento(
+            collect($pagina->items())->pluck('id')->all()
+        );
+
+        $tratamientos = $pagina->through(function (Tratamiento $t) use ($resumenes): array {
+            $resumen = $resumenes[$t->id] ?? ResumenDano::vacio();
+
+            return [
                 ...$this->datos($t),
                 'escaneos' => $t->escaneos_count,
-                'porcentaje_inicial' => $t->primerEscaneo?->porcentaje,
+                'promedio' => $resumen->promedio,
+                'desviacion' => $resumen->desviacion,
                 'ultimo' => $t->ultimoEscaneo?->paraVista(),
-            ]);
+            ];
+        });
 
         // Lista de laboratoristas para sugerir en el filtro, solo para el Jefe
         $laboratoristas = $esJefe
@@ -77,9 +101,12 @@ class TratamientoController extends Controller
             'filtros' => [
                 'buscar' => $buscar,
                 'laboratorista' => $laboratorista,
+                ...$rango,
             ],
             'laboratoristas' => $laboratoristas,
             'puedeFiltrarPorLaboratorista' => $esJefe,
+            'paginar' => $paginar,
+            'porPagina' => self::POR_PAGINA,
         ]);
     }
 
@@ -97,8 +124,10 @@ class TratamientoController extends Controller
             ? $request->string('laboratorista')->trim()->value()
             : '';
 
+        $rango = RangoFechas::deRequest($request);
+
         $query = Tratamiento::visiblesPara($usuario)
-            ->with(['usuario:id,name', 'productor:id,name', 'primerEscaneo', 'ultimoEscaneo'])
+            ->with(['usuario:id,name', 'productor:id,name'])
             ->withCount('escaneos');
 
         if ($buscar !== '') {
@@ -109,11 +138,15 @@ class TratamientoController extends Controller
             $query->whereHas('usuario', fn ($q) => $q->where('name', 'like', "%{$laboratorista}%"));
         }
 
+        RangoFechas::aplicar($query, $rango);
+
         $tratamientos = $query->latest()->get();
+        $resumenes = ResumenDano::porTratamiento($tratamientos->modelKeys());
+        $analizador = new AnalizadorTallo;
 
         $nombreArchivo = 'reporte_tratamientos_'.now()->format('Y-m-d_His').'.csv';
 
-        return response()->streamDownload(function () use ($tratamientos) {
+        return response()->streamDownload(function () use ($tratamientos, $resumenes, $analizador) {
             $salida = fopen('php://output', 'w');
 
             // BOM UTF-8 para que Microsoft Excel abra acentos y caracteres especiales automáticamente
@@ -130,18 +163,13 @@ class TratamientoController extends Controller
                 'Responsable (Laboratorista)',
                 'Productor',
                 'Total Tallos',
-                'Daño Inicial (%)',
-                'Daño Actual (%)',
-                'Variación Daño (pts)',
+                'Daño Promedio (%)',
+                'Desviación Estándar',
                 'Nivel Severidad',
             ], escape: '\\');
 
             foreach ($tratamientos as $t) {
-                $inicial = $t->primerEscaneo?->porcentaje;
-                $ultimo = $t->ultimoEscaneo?->porcentaje;
-                $cambio = ($inicial !== null && $ultimo !== null && $t->escaneos_count > 1)
-                    ? round($ultimo - $inicial, 2)
-                    : null;
+                $resumen = $resumenes[$t->id] ?? ResumenDano::vacio();
 
                 fputcsv($salida, [
                     $t->id,
@@ -153,11 +181,14 @@ class TratamientoController extends Controller
                     ucfirst($t->estado),
                     $t->usuario->name,
                     $t->productor?->name ?? 'N/A',
-                    $t->escaneos_count,
-                    $inicial !== null ? number_format($inicial, 2, '.', '').'%' : 'N/A',
-                    $ultimo !== null ? number_format($ultimo, 2, '.', '').'%' : 'N/A',
-                    $cambio !== null ? ($cambio > 0 ? "+{$cambio}" : "{$cambio}") : 'N/A',
-                    $t->ultimoEscaneo ? "Nivel {$t->ultimoEscaneo->nivel} ({$t->ultimoEscaneo->etiqueta})" : 'N/A',
+                    $resumen->tallos,
+                    $resumen->promedio !== null ? number_format($resumen->promedio, 2, '.', '').'%' : 'N/A',
+                    // Con un solo tallo no hay desviación definida
+                    $resumen->desviacion !== null ? number_format($resumen->desviacion, 2, '.', '') : 'N/A',
+                    // El nivel describe el promedio del tratamiento, no su último tallo
+                    $resumen->promedio !== null
+                        ? sprintf('Nivel %d (%s)', ...array_values($analizador->clasificar($resumen->promedio)))
+                        : 'N/A',
                 ], escape: '\\');
             }
 
@@ -241,11 +272,17 @@ class TratamientoController extends Controller
         $usuario = $request->user();
 
         $tratamiento->load(['usuario:id,name', 'productor:id,name']);
-        $escaneos = $tratamiento->escaneos()
+
+        $deTratamiento = $tratamiento->escaneos()
             ->with('usuario:id,name')
             ->oldest()
             ->oldest('id')
-            ->get()
+            ->get();
+
+        // El promedio sale de los escaneos ya cargados: no hace falta otra consulta
+        $resumen = ResumenDano::de($deTratamiento->pluck('porcentaje')->all());
+
+        $escaneos = $deTratamiento
             ->map(function (Escaneo $e) use ($tratamiento, $usuario) {
                 // El tratamiento ya está cargado: se lo pasamos para que la política no
                 // vuelva a consultarlo una vez por escaneo
@@ -264,6 +301,8 @@ class TratamientoController extends Controller
                 ...$this->datos($tratamiento),
                 'productor' => $tratamiento->productor?->name,
                 'notas' => $tratamiento->notas,
+                'promedio' => $resumen->promedio,
+                'desviacion' => $resumen->desviacion,
                 'puede_agregar' => $usuario->can('agregarEscaneo', $tratamiento),
                 'puede_editar' => $puedeEditar,
                 'puede_eliminar' => $usuario->can('delete', $tratamiento),
@@ -335,8 +374,6 @@ class TratamientoController extends Controller
      */
     private function ultimoNivel(): int
     {
-        $niveles = array_map(intval(...), array_column(Config::array('escala.niveles'), 'nivel'));
-
-        return $niveles === [] ? 0 : max($niveles);
+        return (new AnalizadorTallo)->ultimoNivel();
     }
 }

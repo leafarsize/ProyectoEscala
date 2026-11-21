@@ -1,24 +1,27 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
-    ArrowRight,
     ChevronLeft,
     ChevronRight,
     FileSpreadsheet,
     FlaskConical,
     Images,
+    Power,
     Search,
     User,
     X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { formatoDia, NivelBadge } from '@/components/escaneo-detalle';
+import { FiltroFechas } from '@/components/filtro-fechas';
 import type { EscaneoVista } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Toggle } from '@/components/ui/toggle';
 import {
     Select,
     SelectContent,
@@ -42,7 +45,10 @@ type TratamientoResumen = {
     estado: 'abierto' | 'cerrado';
     responsable: string;
     escaneos: number;
-    porcentaje_inicial: number | null;
+    /** Daño promedio de todos los tallos; null si aún no hay ninguno */
+    promedio: number | null;
+    /** Desviación estándar muestral; null con menos de dos tallos */
+    desviacion: number | null;
     ultimo: EscaneoVista | null;
 };
 
@@ -57,39 +63,70 @@ type Paginado<T> = {
     next_page_url: string | null;
 };
 
+type Filtros = {
+    buscar: string;
+    laboratorista: string;
+    /** Rango por fecha de inicio del tratamiento (AAAA-MM-DD) */
+    desde: string;
+    hasta: string;
+};
+
 export default function Tratamientos({
     tratamientos,
     ultimoNivel,
-    filtros = { buscar: '', laboratorista: '' },
+    filtros = { buscar: '', laboratorista: '', desde: '', hasta: '' },
     laboratoristas = [],
     puedeFiltrarPorLaboratorista = false,
+    paginar = true,
 }: {
     tratamientos: Paginado<TratamientoResumen>;
     ultimoNivel: number;
-    filtros?: { buscar: string; laboratorista: string };
+    filtros?: Filtros;
     laboratoristas?: string[];
     /** Solo el Jefe de laboratorio ve tratamientos de otras personas */
     puedeFiltrarPorLaboratorista?: boolean;
+    /** false: todos de corrido, sin repartir en páginas */
+    paginar?: boolean;
 }) {
     const [buscar, setBuscar] = useState(filtros.buscar || '');
     const [laboratorista, setLaboratorista] = useState(
         filtros.laboratorista || '',
     );
-    const primerRender = useRef(true);
 
-    const tieneFiltros = Boolean(filtros.buscar || filtros.laboratorista);
+    const tieneFiltros = Boolean(
+        filtros.buscar ||
+        filtros.laboratorista ||
+        filtros.desde ||
+        filtros.hasta,
+    );
 
-    const ejecutarBusqueda = (
-        nuevoBuscar: string,
-        nuevoLaboratorista: string,
+    /**
+     * Consulta con los filtros que ya aplicó el servidor, pisados por lo que se
+     * está escribiendo y por el cambio que llega. Así tocar una fecha no borra
+     * la búsqueda a medio teclear, ni al revés.
+     */
+    const consultar = (
+        cambios: Partial<Filtros> & { paginar?: boolean } = {},
     ) => {
+        const siguiente = {
+            ...filtros,
+            buscar,
+            laboratorista,
+            paginar,
+            ...cambios,
+        };
+
         router.get(
             index.url({
                 query: {
-                    ...(nuevoBuscar ? { buscar: nuevoBuscar } : {}),
-                    ...(nuevoLaboratorista
-                        ? { laboratorista: nuevoLaboratorista }
+                    ...(siguiente.buscar ? { buscar: siguiente.buscar } : {}),
+                    ...(siguiente.laboratorista
+                        ? { laboratorista: siguiente.laboratorista }
                         : {}),
+                    ...(siguiente.desde ? { desde: siguiente.desde } : {}),
+                    ...(siguiente.hasta ? { hasta: siguiente.hasta } : {}),
+                    // Paginar es lo normal; solo viaja en la URL cuando se apaga
+                    ...(siguiente.paginar ? {} : { paginar: '0' }),
                 },
             }),
             {},
@@ -103,21 +140,25 @@ export default function Tratamientos({
 
     // Filtrar automáticamente al escribir en el campo de búsqueda (debounce 300 ms)
     useEffect(() => {
-        if (primerRender.current) {
-            primerRender.current = false;
+        // Solo se consulta cuando lo escrito difiere de lo que ya aplicó el
+        // servidor. Un guard de "primer render" con useRef no sirve: en
+        // desarrollo StrictMode ejecuta el efecto dos veces y la segunda se
+        // colaba como búsqueda real, navegando a una URL sin "page" y
+        // devolviendo a la página 1 recién llegados a la 2.
+        if (buscar === filtros.buscar) {
             return;
         }
 
         const timer = setTimeout(() => {
-            ejecutarBusqueda(buscar, laboratorista);
+            consultar({ buscar });
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [buscar]);
+    }, [buscar, filtros.buscar]);
 
     const manejarSubmit = (e: FormEvent) => {
         e.preventDefault();
-        ejecutarBusqueda(buscar, laboratorista);
+        consultar({ buscar });
     };
 
     const limpiarFiltros = () => {
@@ -135,7 +176,7 @@ export default function Tratamientos({
                     <Heading
                         as="h1"
                         title="Tratamientos"
-                        description="Historial de tratamientos y la evolución del daño en cada uno."
+                        description="Historial de tratamientos"
                     />
                     <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" asChild>
@@ -151,6 +192,12 @@ export default function Tratamientos({
                                                       filtros.laboratorista,
                                               }
                                             : {}),
+                                        ...(filtros.desde
+                                            ? { desde: filtros.desde }
+                                            : {}),
+                                        ...(filtros.hasta
+                                            ? { hasta: filtros.hasta }
+                                            : {}),
                                     },
                                 })}
                                 download
@@ -165,50 +212,74 @@ export default function Tratamientos({
                     </div>
                 </div>
 
-                {/* Barra de filtros: nombre del tratamiento y, para el Jefe, laboratorista */}
+                {/* Filtros: dos columnas, cada campo con su etiqueta encima */}
                 <Card>
                     <CardContent className="p-4">
                         <form
                             onSubmit={manejarSubmit}
-                            className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                            className="grid gap-4 sm:grid-cols-2"
                         >
-                            {/* 1. Filtro por nombre de tratamiento */}
-                            <div className="relative flex-1">
-                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    value={buscar}
-                                    onChange={(e) => setBuscar(e.target.value)}
-                                    placeholder="Buscar por nombre de tratamiento..."
-                                    className="pr-9 pl-9"
-                                />
-                                {buscar && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setBuscar('');
-                                            ejecutarBusqueda('', laboratorista);
-                                        }}
-                                        className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
-                                        title="Borrar texto"
-                                    >
-                                        <X className="size-4" />
-                                    </button>
-                                )}
+                            {/* 1. Filtro por nombre de tratamiento. Sin el filtro
+                                de laboratorista ocupa la fila entera, para que no
+                                quede un hueco al lado */}
+                            <div
+                                className={
+                                    puedeFiltrarPorLaboratorista
+                                        ? 'grid gap-2'
+                                        : 'grid gap-2 sm:col-span-2'
+                                }
+                            >
+                                <Label htmlFor="buscar">
+                                    Buscar tratamiento
+                                </Label>
+                                <div className="relative">
+                                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        id="buscar"
+                                        value={buscar}
+                                        onChange={(e) =>
+                                            setBuscar(e.target.value)
+                                        }
+                                        placeholder="Nombre del tratamiento..."
+                                        className="pr-9 pl-9"
+                                    />
+                                    {buscar && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBuscar('');
+                                                consultar({ buscar: '' });
+                                            }}
+                                            className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                                            title="Borrar texto"
+                                        >
+                                            <X className="size-4" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* 2. Filtro por laboratorista (solo el Jefe) */}
                             {puedeFiltrarPorLaboratorista && (
-                                <div className="w-full sm:w-64">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="laboratorista">
+                                        Laboratorista
+                                    </Label>
                                     <Select
                                         value={laboratorista || 'todos'}
                                         onValueChange={(val) => {
                                             const nuevo =
                                                 val === 'todos' ? '' : val;
                                             setLaboratorista(nuevo);
-                                            ejecutarBusqueda(buscar, nuevo);
+                                            consultar({
+                                                laboratorista: nuevo,
+                                            });
                                         }}
                                     >
-                                        <SelectTrigger className="w-full">
+                                        <SelectTrigger
+                                            id="laboratorista"
+                                            className="w-full"
+                                        >
                                             <div className="flex items-center gap-2 truncate">
                                                 <User className="size-4 text-muted-foreground" />
                                                 <SelectValue placeholder="Todos los laboratoristas" />
@@ -231,8 +302,16 @@ export default function Tratamientos({
                                 </div>
                             )}
 
-                            {/* Botón buscar y botón limpiar */}
-                            <div className="flex items-center gap-2">
+                            {/* 3. Rango por fecha de inicio, el mismo control que usa Comparar */}
+                            <FiltroFechas
+                                desde={filtros.desde}
+                                hasta={filtros.hasta}
+                                onCambio={consultar}
+                                idPrefijo="historial"
+                            />
+
+                            {/* Buscar y limpiar, en su propia fila */}
+                            <div className="flex items-center gap-2 sm:col-span-2">
                                 <Button
                                     type="submit"
                                     variant="secondary"
@@ -244,17 +323,32 @@ export default function Tratamientos({
                                     <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
                                         onClick={limpiarFiltros}
-                                        title="Limpiar filtros"
                                     >
                                         <X className="size-4" />
+                                        Limpiar filtros
                                     </Button>
                                 )}
                             </div>
                         </form>
                     </CardContent>
                 </Card>
+
+                {/* Encendido de la paginación, justo debajo de los filtros */}
+                <Toggle
+                    variant="outline"
+                    pressed={paginar}
+                    onPressedChange={(valor) => consultar({ paginar: valor })}
+                    title={
+                        paginar
+                            ? 'Paginación activada. Clic para ver todos los tratamientos de corrido.'
+                            : 'Paginación desactivada: se ven todos. Clic para repartirlos en páginas.'
+                    }
+                    className="w-fit px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                    <Power className="size-4" />
+                    Paginación
+                </Toggle>
 
                 {/* Listado de Tratamientos o estado vacío */}
                 {tratamientos.data.length === 0 ? (
@@ -263,20 +357,25 @@ export default function Tratamientos({
                         onLimpiar={limpiarFiltros}
                     />
                 ) : (
-                    <>
-                        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {tratamientos.data.map((t) => (
-                                <li key={t.id}>
-                                    <TarjetaTratamiento
-                                        tratamiento={t}
-                                        ultimoNivel={ultimoNivel}
-                                    />
-                                </li>
-                            ))}
-                        </ul>
+                    <Card>
+                        <CardContent className="flex flex-col gap-4 p-4 sm:p-5">
+                            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {tratamientos.data.map((t) => (
+                                    <li key={t.id}>
+                                        <TarjetaTratamiento
+                                            tratamiento={t}
+                                            ultimoNivel={ultimoNivel}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
 
-                        <Paginacion pagina={tratamientos} />
-                    </>
+                            <PieListado
+                                pagina={tratamientos}
+                                paginar={paginar}
+                            />
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </>
@@ -331,11 +430,6 @@ function TarjetaTratamiento({
     tratamiento: TratamientoResumen;
     ultimoNivel: number;
 }) {
-    const cambio =
-        t.ultimo && t.porcentaje_inicial !== null && t.escaneos > 1
-            ? t.ultimo.porcentaje - t.porcentaje_inicial
-            : null;
-
     return (
         <Link
             href={show(t.id)}
@@ -384,12 +478,12 @@ function TarjetaTratamiento({
                             .join(' · ')}
                     </p>
 
-                    {t.ultimo && (
+                    {t.ultimo && t.promedio !== null && (
                         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                            <Evolucion
-                                inicial={t.porcentaje_inicial}
-                                actual={t.ultimo.porcentaje}
-                                cambio={cambio}
+                            <Promedio
+                                promedio={t.promedio}
+                                desviacion={t.desviacion}
+                                tallos={t.escaneos}
                             />
                             <NivelBadge
                                 nivel={t.ultimo.nivel}
@@ -407,74 +501,65 @@ function TarjetaTratamiento({
     );
 }
 
-function Evolucion({
-    inicial,
-    actual,
-    cambio,
+/**
+ * Daño promedio del tratamiento con su desviación estándar. Sustituye a la
+ * evolución inicial -> actual: lo que compara el laboratorio es el promedio.
+ */
+function Promedio({
+    promedio,
+    desviacion,
+    tallos,
 }: {
-    inicial: number | null;
-    actual: number;
-    cambio: number | null;
+    promedio: number;
+    desviacion: number | null;
+    tallos: number;
 }) {
-    if (cambio === null || inicial === null) {
-        return (
-            <span className="text-lg font-semibold whitespace-nowrap tabular-nums">
-                {actual.toFixed(1)}
-                <span className="text-sm text-muted-foreground">
-                    {' '}
-                    % de daño
-                </span>
-            </span>
-        );
-    }
-
     return (
-        <span className="flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums">
-            <span className="text-muted-foreground">
-                {inicial.toFixed(1)} %
+        <span className="flex flex-wrap items-baseline gap-x-1.5 text-sm whitespace-nowrap tabular-nums">
+            <span className="text-lg font-semibold">
+                {promedio.toFixed(1)} %
             </span>
-            <ArrowRight className="size-3.5 text-muted-foreground" />
-            <span className="text-lg font-semibold">{actual.toFixed(1)} %</span>
-            <span
-                className={
-                    cambio > 0
-                        ? 'text-xs text-destructive'
-                        : 'text-xs text-muted-foreground'
-                }
-            >
-                ({cambio > 0 ? '+' : ''}
-                {cambio.toFixed(1)})
+            {desviacion !== null && (
+                <span className="text-xs text-muted-foreground">
+                    ± {desviacion.toFixed(1)}
+                </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+                promedio de {tallos} {tallos === 1 ? 'tallo' : 'tallos'}
             </span>
         </span>
     );
 }
 
-function Paginacion({ pagina }: { pagina: Paginado<TratamientoResumen> }) {
-    if (pagina.last_page <= 1) {
-        return (
-            <p className="text-sm text-muted-foreground">
-                {pagina.total}{' '}
-                {pagina.total === 1 ? 'tratamiento' : 'tratamientos'}
-            </p>
-        );
+/**
+ * Pie del listado: solo las flechas para cambiar de página. Sin paginación
+ * encendida, o con una sola página, no se dibuja nada.
+ */
+function PieListado({
+    pagina,
+    paginar,
+}: {
+    pagina: Paginado<TratamientoResumen>;
+    paginar: boolean;
+}) {
+    if (!paginar || pagina.last_page <= 1) {
+        return null;
     }
 
     return (
         <nav
             aria-label="Paginación"
-            className="flex items-center justify-between gap-2"
+            className="flex items-center justify-center gap-3 border-t pt-4"
         >
-            <p className="text-sm text-muted-foreground">
-                {pagina.from}–{pagina.to} de {pagina.total} tratamientos
-            </p>
-            <div className="flex gap-2">
-                <BotonPagina url={pagina.prev_page_url} etiqueta="Anterior">
-                    <ChevronLeft />
-                </BotonPagina>
-                <BotonPagina url={pagina.next_page_url} etiqueta="Siguiente">
-                    <ChevronRight />
-                </BotonPagina>
-            </div>
+            <BotonPagina url={pagina.prev_page_url} etiqueta="Página anterior">
+                <ChevronLeft />
+            </BotonPagina>
+            <span className="text-sm text-muted-foreground tabular-nums">
+                {pagina.current_page} de {pagina.last_page}
+            </span>
+            <BotonPagina url={pagina.next_page_url} etiqueta="Página siguiente">
+                <ChevronRight />
+            </BotonPagina>
         </nav>
     );
 }

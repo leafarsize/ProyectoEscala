@@ -23,6 +23,8 @@ class AnalizarTalloRequest extends FormRequest
         $reglas = [
             // mimes revisa el contenido real del archivo, no solo la extensión
             'imagen' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('escala.max_kb')],
+            'revisar' => ['sometimes', 'boolean'],
+            'mascara' => ['bail', 'sometimes', 'file', 'mimes:png', 'max:2048', 'dimensions:max_width=1280,max_height=1280'],
         ];
 
         // El productor solo obtiene el análisis; no inicia tratamientos ni se guarda su escaneo
@@ -89,6 +91,9 @@ class AnalizarTalloRequest extends FormRequest
             'imagen.uploaded' => 'No se pudo subir la imagen. Intenta de nuevo.',
             'imagen.mimes' => 'Formato no válido. Usa una imagen JPG, PNG o WEBP.',
             'imagen.max' => 'La imagen supera el tamaño máximo de 10 MB.',
+            'mascara.mimes' => 'La máscara corregida debe ser una imagen PNG.',
+            'mascara.dimensions' => 'El tamaño de la máscara supera el de la imagen analizada.',
+            'mascara.max' => 'La máscara corregida supera el tamaño permitido.',
             'tratamiento_id.exists' => 'El tratamiento no existe.',
             'nombre.required_without' => 'Escribe el nombre del tratamiento.',
             'numero_cana.required' => 'Escribe el número de caña.',

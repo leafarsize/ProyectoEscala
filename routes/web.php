@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ComparacionController;
 use App\Http\Controllers\EscaneoController;
 use App\Http\Controllers\TratamientoController;
 use App\Http\Controllers\UsuariosController;
@@ -45,6 +46,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('escaneos.imagen');
         // Descartar un escaneo que no sirve, sin tocar el resto del tratamiento
         Route::delete('escaneos/{escaneo}', [EscaneoController::class, 'destroy'])->name('escaneos.destroy');
+
+        // Comparar el daño promedio entre tratamientos
+        Route::get('comparar/exportar', [ComparacionController::class, 'exportar'])->name('comparar.exportar');
+        Route::get('comparar', [ComparacionController::class, 'index'])->name('comparar.index');
     });
 
     // Solo Productor

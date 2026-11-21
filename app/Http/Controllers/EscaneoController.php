@@ -38,6 +38,15 @@ class EscaneoController extends Controller
         $tratamientos = $puedeGuardar
             ? Tratamiento::visiblesPara($usuario)
                 ->where('estado', Tratamiento::ABIERTO)
+                ->addSelect([
+                    'ultimo_numero_cana' => Escaneo::query()
+                        ->select('numero_cana')
+                        ->whereColumn('escaneos.tratamiento_id', 'tratamientos.id')
+                        ->whereNotNull('numero_cana')
+                        ->where('numero_cana', '<>', '')
+                        ->latest('id')
+                        ->limit(1),
+                ])
                 ->withCount('escaneos')
                 ->latest()
                 ->get()
@@ -47,6 +56,7 @@ class EscaneoController extends Controller
                     'variedad' => $t->variedad,
                     'lote' => $t->lote,
                     'escaneos' => $t->escaneos_count,
+                    'ultimo_numero_cana' => $t->getAttribute('ultimo_numero_cana'),
                 ])
             : collect();
 
@@ -93,7 +103,8 @@ class EscaneoController extends Controller
         }
 
         try {
-            $resultado = $analizador->analizar($foto->getRealPath());
+            $revisar = $request->boolean('revisar');
+            $resultado = $analizador->analizar($foto->getRealPath(), $revisar, $request->file('mascara')?->getRealPath());
         } catch (FotoNoValida $e) {
             // Sirve para calibrar los umbrales de analizar_tallo.py con fotos reales
             Log::info('Foto rechazada por el análisis', [
@@ -105,6 +116,10 @@ class EscaneoController extends Controller
             throw ValidationException::withMessages(['imagen' => $e->getMessage()]);
         } catch (RuntimeException) {
             abort(503, 'No se pudo analizar la imagen. Intenta de nuevo.');
+        }
+
+        if ($revisar) {
+            return response()->json($resultado);
         }
 
         if (! $request->guardaEscaneo()) {
