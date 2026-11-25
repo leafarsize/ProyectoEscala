@@ -1,7 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <rect width="32" height="32" rx="6" fill="#fff"/>
-    <g fill="none" stroke="#15803d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11 7c2-2 5-3 8-3-1 4-1 7 0 10s1 5 0 7-1 4 0 6c-2 1-6 2-8 1 1-3 1-6 0-8s-1-4 0-6 1-4 0-7Z"/>
-        <path d="M11 14c2 1 5 1 8 0m0 6c3-2 5-1 7 2m-15-1c-3 0-5 2-5 4"/>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <defs>
+        <linearGradient id="fav-ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#1b396a" />
+            <stop offset="100%" stop-color="#0d52a0" />
+        </linearGradient>
+        <linearGradient id="fav-tallo" x1="25" y1="12" x2="39" y2="54" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#22c55e" />
+            <stop offset="100%" stop-color="#15803d" />
+        </linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="14" fill="#ffffff" />
+    <circle cx="32" cy="32" r="25" fill="#f0f7ff" stroke="url(#fav-ring)" stroke-width="3.5" />
+    <path d="M28.5 39C20 38 14 32 13 22.5C19.5 23.5 25.5 28.5 29 35.5Z" fill="#16a34a" />
+    <path d="M35.5 30.5C43 29 49.5 23.5 51 15C44.5 16 38.5 20.5 35 27Z" fill="#22c55e" />
+    <rect x="27.5" y="13" width="9" height="38" rx="4.2" fill="url(#fav-tallo)" stroke="#14532d" stroke-width="1.4" />
+    <path d="M26.5 24.5C29.5 26 34.5 26 37.5 24.5" stroke="#fde047" stroke-width="2.6" stroke-linecap="round" />
+    <path d="M26.5 37.5C29.5 39 34.5 39 37.5 37.5" stroke="#fde047" stroke-width="2.6" stroke-linecap="round" />
 </svg>

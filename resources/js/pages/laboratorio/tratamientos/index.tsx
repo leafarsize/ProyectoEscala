@@ -1,11 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
+    BookOpen,
     ChevronLeft,
     ChevronRight,
     FileSpreadsheet,
     FlaskConical,
     Images,
-    Power,
     Search,
     User,
     X,
@@ -346,7 +346,7 @@ export default function Tratamientos({
                     }
                     className="w-fit px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
                 >
-                    <Power className="size-4" />
+                    <BookOpen className="size-4" />
                     Paginación
                 </Toggle>
 

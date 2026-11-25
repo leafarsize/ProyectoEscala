@@ -28,9 +28,24 @@ function mostrarPixel(capas: Capas, i: number) {
     const lesion = capas.mapa.data[i] === 255;
     const foto = capas.base.data;
     const vista = capas.visible.data;
-    vista[i] = lesion ? (foto[i] + 255) / 2 : foto[i];
-    vista[i + 1] = lesion ? foto[i + 1] / 2 : foto[i + 1];
-    vista[i + 2] = lesion ? foto[i + 2] / 2 : foto[i + 2];
+
+    if (!lesion) {
+        vista[i] = foto[i];
+        vista[i + 1] = foto[i + 1];
+        vista[i + 2] = foto[i + 2];
+        return;
+    }
+
+    // Sistema en rojo; corrección manual del usuario en azul para distinguirlas.
+    if (capas.automatico[i] === 255) {
+        vista[i] = (foto[i] + 255) / 2;
+        vista[i + 1] = foto[i + 1] / 2;
+        vista[i + 2] = foto[i + 2] / 2;
+    } else {
+        vista[i] = foto[i] / 2;
+        vista[i + 1] = (foto[i + 1] + 150) / 2;
+        vista[i + 2] = (foto[i + 2] + 255) / 2;
+    }
 }
 
 export function EditorMascara({
@@ -380,9 +395,28 @@ export function EditorMascara({
                 </ToggleGroup>
             </div>
 
+            {vista === 'lesiones' && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                        <span
+                            aria-hidden="true"
+                            className="size-3 rounded-xs border border-red-700/30 bg-red-500/75"
+                        />
+                        Detectado por el sistema
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                        <span
+                            aria-hidden="true"
+                            className="size-3 rounded-xs border border-sky-700/30 bg-sky-500/75"
+                        />
+                        Marcado manualmente
+                    </span>
+                </div>
+            )}
+
             <p className="text-sm text-muted-foreground">
                 {vista === 'lesiones'
-                    ? 'Las zonas rojas cuentan como daño. Arrastra el pincel sobre el tallo para corregirlas.'
+                    ? 'Las zonas rojas (sistema) y azules (manual) cuentan como daño. Arrastra el pincel sobre el tallo para corregirlas.'
                     : 'Esta es la foto original, sin marcas. Vuelve a «Lesiones» para seguir corrigiendo.'}
             </p>
 

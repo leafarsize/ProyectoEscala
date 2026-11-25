@@ -3,6 +3,7 @@ import {
     Camera,
     FlaskConical,
     ImageUp,
+    LogOut,
     Plus,
     RotateCcw,
     ScanLine,
@@ -12,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, ReactNode } from 'react';
 import { toast } from 'sonner';
+import { ComboboxTratamiento } from '@/components/combobox-tratamiento';
 import { EditorMascara } from '@/components/editor-mascara';
 import type { RevisionMascara } from '@/components/editor-mascara';
 import { NivelBadge } from '@/components/escaneo-detalle';
@@ -35,7 +37,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { VisorCamara } from '@/components/visor-camara';
 import { reducirImagen } from '@/lib/reducir-imagen';
 import { reproducirSonidoExito, reproducirSonidoFallo } from '@/lib/sonidos';
-import { cn } from '@/lib/utils';
+import { cn, diasEntreFechas, validarRangoFechas } from '@/lib/utils';
+import { dashboard } from '@/routes';
 import { analizar, create } from '@/routes/escaneo';
 import { show as verTratamiento } from '@/routes/laboratorio/tratamientos';
 
@@ -270,12 +273,38 @@ export default function Escanear({
         }
     };
 
+    const validarFechasEnCliente = (inicio: string, fin: string): boolean => {
+        const errores = validarRangoFechas(inicio, fin, {
+            inicioInvalida: 'Elige una fecha de inicio válida.',
+            finInvalida: 'Elige una fecha de término válida.',
+        });
+
+        http.clearErrors('fecha_inicio', 'fecha_fin');
+
+        if (errores.inicio) {
+            http.setError('fecha_inicio', errores.inicio);
+        }
+        if (errores.fin) {
+            http.setError('fecha_fin', errores.fin);
+        }
+
+        return !errores.inicio && !errores.fin;
+    };
+
     const analizarTallo = async (mascara?: File) => {
         setErrorServidor(null);
 
         if (puedeGuardar && modo === 'existente' && !http.data.tratamiento_id) {
             http.setError('tratamiento_id', 'Elige un tratamiento.');
 
+            return;
+        }
+
+        if (
+            puedeGuardar &&
+            modo === 'nuevo' &&
+            !validarFechasEnCliente(http.data.fecha_inicio, http.data.fecha_fin)
+        ) {
             return;
         }
 
@@ -356,6 +385,25 @@ export default function Escanear({
                                             ),
                                         }));
                                         http.clearErrors(campo, 'numero_cana');
+                                        return;
+                                    }
+                                    if (
+                                        campo === 'fecha_inicio' ||
+                                        campo === 'fecha_fin'
+                                    ) {
+                                        const siguienteInicio =
+                                            campo === 'fecha_inicio'
+                                                ? valor
+                                                : http.data.fecha_inicio;
+                                        const siguienteFin =
+                                            campo === 'fecha_fin'
+                                                ? valor
+                                                : http.data.fecha_fin;
+                                        http.setData(campo, valor);
+                                        validarFechasEnCliente(
+                                            siguienteInicio,
+                                            siguienteFin,
+                                        );
                                         return;
                                     }
                                     http.setData(campo, valor);
@@ -467,6 +515,8 @@ function SeccionTratamiento({
     condiciones: Condiciones;
     deshabilitado: boolean;
 }) {
+    const duracionDias = diasEntreFechas(datos.fecha_inicio, datos.fecha_fin);
+
     return (
         <Card>
             <CardContent className="flex flex-col gap-4">
@@ -501,11 +551,14 @@ function SeccionTratamiento({
                 {modo === 'nuevo' ? (
                     <>
                         <p className="text-sm text-muted-foreground">
-                            Este escaneo inicia un tratamiento nuevo.
+                            Este escaneo inicia un tratamiento nuevo. Completa
+                            los datos del ensayo para identificarlo y compararlo
+                            después.
                         </p>
                         <Campo
                             id="nombre"
                             etiqueta="Nombre del tratamiento"
+                            ayuda="Identifica el ensayo o lote (p. ej. variedad, hongo, dosis o testigo)."
                             error={errores.nombre}
                         >
                             <Input
@@ -524,13 +577,19 @@ function SeccionTratamiento({
                             <Campo
                                 id="fecha_inicio"
                                 etiqueta="Fecha de inicio"
+                                ayuda="Día en que comenzó la incubación o el tratamiento."
                                 error={errores.fecha_inicio}
                             >
                                 <Input
                                     id="fecha_inicio"
                                     type="date"
+                                    max={datos.fecha_fin || undefined}
                                     value={datos.fecha_inicio}
                                     disabled={deshabilitado}
+                                    aria-invalid={
+                                        Boolean(errores.fecha_inicio) ||
+                                        undefined
+                                    }
                                     onChange={(e) =>
                                         onCambio('fecha_inicio', e.target.value)
                                     }
@@ -540,6 +599,7 @@ function SeccionTratamiento({
                             <Campo
                                 id="fecha_fin"
                                 etiqueta="Fecha de término"
+                                ayuda="Día en que finaliza o se evalúa la incubación (opcional; igual o posterior al inicio)."
                                 error={errores.fecha_fin}
                             >
                                 <Input
@@ -548,16 +608,29 @@ function SeccionTratamiento({
                                     min={datos.fecha_inicio || undefined}
                                     value={datos.fecha_fin}
                                     disabled={deshabilitado}
+                                    aria-invalid={
+                                        Boolean(errores.fecha_fin) || undefined
+                                    }
                                     onChange={(e) =>
                                         onCambio('fecha_fin', e.target.value)
                                     }
                                 />
                             </Campo>
+
+                            {(duracionDias !== null ||
+                                (datos.fecha_inicio && !datos.fecha_fin)) && (
+                                <p className="text-xs text-muted-foreground sm:col-span-2">
+                                    {duracionDias !== null
+                                        ? `Duración de incubación: ${duracionDias} ${duracionDias === 1 ? 'día' : 'días'}.`
+                                        : 'Sin fecha de término definida (puedes asignarla después al editar el tratamiento).'}
+                                </p>
+                            )}
                         </div>
 
                         <Campo
                             id="temperatura"
                             etiqueta="Temperatura"
+                            ayuda="Temperatura controlada durante la incubación del ensayo."
                             error={errores.temperatura}
                         >
                             <ListaOpciones
@@ -575,43 +648,30 @@ function SeccionTratamiento({
                     <Campo
                         id="tratamiento"
                         etiqueta="Agregar el escaneo al tratamiento"
+                        ayuda="Usa el buscador para encontrar un tratamiento abierto por nombre, variedad o lote."
                         error={errores.tratamiento_id}
                     >
-                        <Select
-                            value={datos.tratamiento_id || undefined}
-                            disabled={deshabilitado}
-                            onValueChange={(valor) =>
+                        <ComboboxTratamiento
+                            id="tratamiento"
+                            valor={datos.tratamiento_id}
+                            opciones={tratamientos}
+                            deshabilitado={deshabilitado}
+                            onCambio={(valor) =>
                                 onCambio('tratamiento_id', valor)
                             }
-                        >
-                            <SelectTrigger id="tratamiento" className="w-full">
-                                <SelectValue placeholder="Elige un tratamiento abierto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {tratamientos.map((t) => (
-                                    <SelectItem key={t.id} value={String(t.id)}>
-                                        {[t.nombre, t.variedad, t.lote]
-                                            .filter(Boolean)
-                                            .join(' · ')}{' '}
-                                        ({t.escaneos}{' '}
-                                        {t.escaneos === 1
-                                            ? 'escaneo'
-                                            : 'escaneos'}
-                                        )
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        />
                     </Campo>
                 )}
 
                 <Campo
                     id="numero_cana"
                     etiqueta="Número de caña"
+                    ayuda="Etiqueta del tallo analizado dentro del tratamiento (se sugiere el siguiente número al agregar otro)."
                     error={errores.numero_cana}
                 >
                     <Input
                         id="numero_cana"
+                        placeholder="Ej. Caña 1"
                         value={datos.numero_cana}
                         maxLength={MAX_NUMERO_CANA}
                         disabled={deshabilitado}
@@ -664,20 +724,23 @@ function ListaOpciones({
 function Campo({
     id,
     etiqueta,
+    ayuda,
     error,
     className,
     children,
 }: {
     id: string;
     etiqueta: string;
+    ayuda?: ReactNode;
     error?: string;
     className?: string;
     children: ReactNode;
 }) {
     return (
-        <div className={cn('grid gap-2', className)}>
+        <div className={cn('grid gap-1.5', className)}>
             <Label htmlFor={id}>{etiqueta}</Label>
             {children}
+            {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
             <InputError message={error} />
         </div>
     );
@@ -1003,7 +1066,7 @@ function VistaResultado({
                             </Link>
                             .
                         </p>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
                             <Button size="lg" onClick={() => onNuevo(true)}>
                                 <Plus />
                                 Otro escaneo de este tratamiento
@@ -1016,6 +1079,12 @@ function VistaResultado({
                                 <RotateCcw />
                                 Nuevo tratamiento
                             </Button>
+                            <Button variant="ghost" size="lg" asChild>
+                                <Link href={dashboard()}>
+                                    <LogOut />
+                                    Salir
+                                </Link>
+                            </Button>
                         </div>
                     </div>
                 ) : (
@@ -1023,15 +1092,22 @@ function VistaResultado({
                         <p className="text-center text-xs text-muted-foreground">
                             Análisis rápido: este resultado no se guarda.
                         </p>
-                        <Button
-                            variant="outline"
-                            size="lg"
-                            onClick={() => onNuevo(false)}
-                            className="sm:self-center"
-                        >
-                            <RotateCcw />
-                            Escanear otro tallo
-                        </Button>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                onClick={() => onNuevo(false)}
+                            >
+                                <RotateCcw />
+                                Escanear otro tallo
+                            </Button>
+                            <Button variant="ghost" size="lg" asChild>
+                                <Link href={dashboard()}>
+                                    <LogOut />
+                                    Salir
+                                </Link>
+                            </Button>
+                        </div>
                     </>
                 )}
             </CardContent>

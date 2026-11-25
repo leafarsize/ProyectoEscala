@@ -26,7 +26,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { cn } from '@/lib/utils';
+import { cn, normalizarTexto } from '@/lib/utils';
 import {
     create as rutaCrear,
     destroy,
@@ -71,14 +71,6 @@ function iniciales(nombre: string): string {
         .join('');
 }
 
-/** Quita acentos y pasa a minúsculas, para que "perez" encuentre "Pérez". */
-function normalizar(texto: string): string {
-    return texto
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
-}
-
 export default function Usuarios({
     usuarios,
     roles,
@@ -95,13 +87,13 @@ export default function Usuarios({
     // La lista llega completa desde el servidor, así que filtramos en el
     // cliente: el resultado es inmediato y no hace falta otra petición.
     const usuariosFiltrados = useMemo(() => {
-        const termino = normalizar(buscar.trim());
+        const termino = normalizarTexto(buscar.trim());
 
         return usuarios.filter((usuario) => {
             const coincideTexto =
                 termino === '' ||
-                normalizar(usuario.name).includes(termino) ||
-                normalizar(usuario.email).includes(termino);
+                normalizarTexto(usuario.name).includes(termino) ||
+                normalizarTexto(usuario.email).includes(termino);
 
             return coincideTexto && (rol === '' || usuario.rol === rol);
         });

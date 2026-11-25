@@ -30,7 +30,7 @@
             }
         </style>
 
-        <link rel="icon" href="/images/cana-favicon.svg?v=2" type="image/svg+xml" sizes="any">
+        <link rel="icon" href="/images/cana-favicon.svg?v=3" type="image/svg+xml" sizes="any">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         @fonts

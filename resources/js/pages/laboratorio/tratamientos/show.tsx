@@ -29,7 +29,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { cn } from '@/lib/utils';
+import { cn, diasEntreFechas, validarRangoFechas } from '@/lib/utils';
 import { create } from '@/routes/escaneo';
 import { destroy as destroyEscaneo } from '@/routes/laboratorio/escaneos';
 import {
@@ -302,6 +302,16 @@ function FormularioTratamiento({
     temperaturas: string[];
     onCerrar: () => void;
 }) {
+    const [fechaInicio, setFechaInicio] = useState(t.fecha_inicio);
+    const [fechaFin, setFechaFin] = useState(t.fecha_fin ?? '');
+
+    const erroresFechas = validarRangoFechas(fechaInicio, fechaFin, {
+        inicioInvalida: 'Elige una fecha de inicio válida.',
+        finInvalida: 'Elige una fecha de término válida.',
+    });
+    const fechasInvalidas = Boolean(erroresFechas.inicio || erroresFechas.fin);
+    const duracionDias = diasEntreFechas(fechaInicio, fechaFin);
+
     return (
         <>
             <DialogHeader>
@@ -320,7 +330,7 @@ function FormularioTratamiento({
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="grid gap-2">
+                        <div className="grid gap-1.5">
                             <Label htmlFor="editar-nombre">
                                 Nombre del tratamiento
                             </Label>
@@ -331,11 +341,15 @@ function FormularioTratamiento({
                                 maxLength={255}
                                 required
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Identifica el ensayo o lote para distinguirlo en
+                                el historial y al comparar.
+                            </p>
                             <InputError message={errors.nombre} />
                         </div>
 
-                        <div className="grid gap-5 sm:grid-cols-2">
-                            <div className="grid gap-2">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-1.5">
                                 <Label htmlFor="editar-fecha-inicio">
                                     Fecha de inicio
                                 </Label>
@@ -343,13 +357,31 @@ function FormularioTratamiento({
                                     id="editar-fecha-inicio"
                                     name="fecha_inicio"
                                     type="date"
-                                    defaultValue={t.fecha_inicio}
+                                    value={fechaInicio}
+                                    max={fechaFin || undefined}
+                                    aria-invalid={
+                                        Boolean(
+                                            erroresFechas.inicio ||
+                                            errors.fecha_inicio,
+                                        ) || undefined
+                                    }
+                                    onChange={(e) =>
+                                        setFechaInicio(e.target.value)
+                                    }
                                     required
                                 />
-                                <InputError message={errors.fecha_inicio} />
+                                <p className="text-xs text-muted-foreground">
+                                    Día en que inició la incubación.
+                                </p>
+                                <InputError
+                                    message={
+                                        erroresFechas.inicio ??
+                                        errors.fecha_inicio
+                                    }
+                                />
                             </div>
 
-                            <div className="grid gap-2">
+                            <div className="grid gap-1.5">
                                 <Label htmlFor="editar-fecha-fin">
                                     Fecha de término
                                 </Label>
@@ -357,15 +389,38 @@ function FormularioTratamiento({
                                     id="editar-fecha-fin"
                                     name="fecha_fin"
                                     type="date"
-                                    min={t.fecha_inicio}
-                                    defaultValue={t.fecha_fin ?? ''}
+                                    min={fechaInicio || undefined}
+                                    value={fechaFin}
+                                    aria-invalid={
+                                        Boolean(
+                                            erroresFechas.fin ||
+                                            errors.fecha_fin,
+                                        ) || undefined
+                                    }
+                                    onChange={(e) =>
+                                        setFechaFin(e.target.value)
+                                    }
                                 />
-                                <InputError message={errors.fecha_fin} />
+                                <p className="text-xs text-muted-foreground">
+                                    Día de cierre o evaluación (opcional).
+                                </p>
+                                <InputError
+                                    message={
+                                        erroresFechas.fin ?? errors.fecha_fin
+                                    }
+                                />
                             </div>
+
+                            {duracionDias !== null && (
+                                <p className="text-xs text-muted-foreground sm:col-span-2">
+                                    Duración calculada: {duracionDias}{' '}
+                                    {duracionDias === 1 ? 'día' : 'días'}.
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid gap-5 sm:grid-cols-2">
-                            <div className="grid gap-2">
+                            <div className="grid gap-1.5">
                                 <Label htmlFor="editar-temperatura">
                                     Temperatura
                                 </Label>
@@ -385,10 +440,13 @@ function FormularioTratamiento({
                                         </option>
                                     ))}
                                 </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Temperatura de incubación del ensayo.
+                                </p>
                                 <InputError message={errors.temperatura} />
                             </div>
 
-                            <div className="grid gap-2">
+                            <div className="grid gap-1.5">
                                 <Label htmlFor="editar-estado">Estado</Label>
                                 <select
                                     id="editar-estado"
@@ -404,11 +462,14 @@ function FormularioTratamiento({
                                         Cerrado (ya no admite escaneos)
                                     </option>
                                 </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Controla si se pueden agregar más tallos.
+                                </p>
                                 <InputError message={errors.estado} />
                             </div>
                         </div>
 
-                        <div className="grid gap-2">
+                        <div className="grid gap-1.5">
                             <Label htmlFor="editar-notas">Notas</Label>
                             <textarea
                                 id="editar-notas"
@@ -430,7 +491,10 @@ function FormularioTratamiento({
                             >
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={processing}>
+                            <Button
+                                type="submit"
+                                disabled={processing || fechasInvalidas}
+                            >
                                 {processing && <Spinner />}
                                 Guardar cambios
                             </Button>

@@ -41,7 +41,7 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                             {({ processing, errors }) => (
                                 <>
                                     <CardContent className="flex flex-col gap-5">
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-1.5">
                                             <Label htmlFor="name">Nombre</Label>
                                             <Input
                                                 id="name"
@@ -50,10 +50,14 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                 autoComplete="name"
                                                 placeholder="Nombre y apellidos"
                                             />
+                                            <p className="text-xs text-muted-foreground">
+                                                Nombre completo como aparecerá
+                                                en los reportes.
+                                            </p>
                                             <InputError message={errors.name} />
                                         </div>
 
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-1.5">
                                             <Label htmlFor="email">
                                                 Correo
                                             </Label>
@@ -65,12 +69,16 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                 autoComplete="off"
                                                 placeholder="persona@escala.test"
                                             />
+                                            <p className="text-xs text-muted-foreground">
+                                                Se usará para iniciar sesión en
+                                                la plataforma.
+                                            </p>
                                             <InputError
                                                 message={errors.email}
                                             />
                                         </div>
 
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-1.5">
                                             <Label htmlFor="rol">Rol</Label>
                                             <select
                                                 id="rol"
@@ -91,11 +99,15 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                     </option>
                                                 ))}
                                             </select>
+                                            <p className="text-xs text-muted-foreground">
+                                                Define a qué secciones y
+                                                acciones tendrá acceso.
+                                            </p>
                                             <InputError message={errors.rol} />
                                         </div>
 
                                         <div className="grid gap-5 sm:grid-cols-2">
-                                            <div className="grid gap-2">
+                                            <div className="grid gap-1.5">
                                                 <Label htmlFor="password">
                                                     Contraseña temporal
                                                 </Label>
@@ -111,9 +123,9 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                 />
                                             </div>
 
-                                            <div className="grid gap-2">
+                                            <div className="grid gap-1.5">
                                                 <Label htmlFor="password_confirmation">
-                                                    Repítela
+                                                    Confirmar contraseña
                                                 </Label>
                                                 <Input
                                                     id="password_confirmation"

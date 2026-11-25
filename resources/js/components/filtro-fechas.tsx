@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
+import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { validarRangoFechas } from '@/lib/utils';
 
 export type RangoFechas = {
     /** AAAA-MM-DD, o cadena vacía si ese extremo no acota */
@@ -11,20 +14,14 @@ export type RangoFechas = {
  * Rango «iniciados desde / hasta» por fecha de inicio del tratamiento. Lo
  * comparten el historial y la comparación para que el filtro se vea y se
  * comporte igual en las dos pantallas.
- *
- * Son dos celdas sueltas (un fragmento, no un contenedor): así cada pantalla las
- * acomoda en su propia rejilla de filtros sin heredar un ancho ajeno.
- *
- * Cada campo acota el extremo contrario (`max` y `min`), de modo que no se puede
- * pedir un rango al revés. Los dos extremos son inclusivos.
  */
 export function FiltroFechas({
     desde,
     hasta,
     onCambio,
     idPrefijo = 'filtro',
-    etiquetaDesde = 'Inicio',
-    etiquetaHasta = 'Fin',
+    etiquetaDesde = 'Iniciados desde',
+    etiquetaHasta = 'Iniciados hasta',
 }: {
     desde: string;
     hasta: string;
@@ -36,28 +33,69 @@ export function FiltroFechas({
     etiquetaDesde?: string;
     etiquetaHasta?: string;
 }) {
+    const [valorDesde, setValorDesde] = useState(desde);
+    const [valorHasta, setValorHasta] = useState(hasta);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        setValorDesde(desde);
+        setValorHasta(hasta);
+        setError('');
+    }, [desde, hasta]);
+
+    const manejarCambio = (campo: 'desde' | 'hasta', nuevoValor: string) => {
+        const siguienteDesde = campo === 'desde' ? nuevoValor : valorDesde;
+        const siguienteHasta = campo === 'hasta' ? nuevoValor : valorHasta;
+
+        setValorDesde(siguienteDesde);
+        setValorHasta(siguienteHasta);
+
+        const errores = validarRangoFechas(siguienteDesde, siguienteHasta, {
+            inicioInvalida: `La fecha de «${etiquetaDesde}» no es válida.`,
+            finInvalida: `La fecha de «${etiquetaHasta}» no es válida.`,
+            invertidas: `La fecha de «${etiquetaDesde}» no puede ser posterior a «${etiquetaHasta}».`,
+        });
+
+        const mensaje = errores.inicio ?? errores.fin ?? '';
+        setError(mensaje);
+
+        if (!mensaje) {
+            onCambio({ [campo]: nuevoValor });
+        }
+    };
+
     return (
         <>
-            <div className="grid gap-2">
+            <div className="grid gap-1.5">
                 <Label htmlFor={`${idPrefijo}-desde`}>{etiquetaDesde}</Label>
                 <Input
                     id={`${idPrefijo}-desde`}
                     type="date"
-                    value={desde}
-                    max={hasta || undefined}
-                    onChange={(e) => onCambio({ desde: e.target.value })}
+                    value={valorDesde}
+                    max={valorHasta || undefined}
+                    aria-invalid={Boolean(error) || undefined}
+                    onChange={(e) => manejarCambio('desde', e.target.value)}
                 />
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-1.5">
                 <Label htmlFor={`${idPrefijo}-hasta`}>{etiquetaHasta}</Label>
                 <Input
                     id={`${idPrefijo}-hasta`}
                     type="date"
-                    value={hasta}
-                    min={desde || undefined}
-                    onChange={(e) => onCambio({ hasta: e.target.value })}
+                    value={valorHasta}
+                    min={valorDesde || undefined}
+                    aria-invalid={Boolean(error) || undefined}
+                    onChange={(e) => manejarCambio('hasta', e.target.value)}
                 />
+            </div>
+
+            <div className="sm:col-span-2">
+                <p className="text-xs text-muted-foreground">
+                    Filtra los tratamientos cuya fecha de inicio esté dentro de
+                    este rango.
+                </p>
+                <InputError message={error} />
             </div>
         </>
     );

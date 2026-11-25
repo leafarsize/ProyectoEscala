@@ -257,8 +257,6 @@ export default function Comparar({
                                 hasta={filtros.hasta}
                                 onCambio={consultar}
                                 idPrefijo="comparar"
-                                etiquetaDesde="Inicio"
-                                etiquetaHasta="Fin"
                             />
 
                             {tieneFiltros && (

@@ -42,7 +42,11 @@ class AnalizarTalloRequest extends FormRequest
             'temperatura' => ['nullable', Rule::in(Config::array('escala.temperaturas'))],
             // Incubación: se eligen en el calendario. La duración en días se calcula con las dos.
             'fecha_inicio' => ['nullable', 'date'],
-            'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
+            'fecha_fin' => [
+                'nullable',
+                'date',
+                $this->filled('fecha_inicio') ? 'after_or_equal:fecha_inicio' : 'after_or_equal:today',
+            ],
             // Identifica el tallo de la foto; se pide en cada escaneo, no solo en el primero
             'numero_cana' => ['required', 'string', 'max:50'],
             'productor_id' => [
