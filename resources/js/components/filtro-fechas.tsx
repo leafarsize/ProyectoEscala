@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EtiquetaCampo } from '@/components/info-ayuda';
 import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,7 +68,11 @@ export function FiltroFechas({
     return (
         <>
             <div className="grid gap-1.5">
-                <Label htmlFor={`${idPrefijo}-desde`}>{etiquetaDesde}</Label>
+                <EtiquetaCampo
+                    htmlFor={`${idPrefijo}-desde`}
+                    etiqueta={etiquetaDesde}
+                    ayuda="Filtra los tratamientos cuya fecha de inicio esté dentro de este rango."
+                />
                 <Input
                     id={`${idPrefijo}-desde`}
                     type="date"
@@ -90,13 +95,11 @@ export function FiltroFechas({
                 />
             </div>
 
-            <div className="sm:col-span-2">
-                <p className="text-xs text-muted-foreground">
-                    Filtra los tratamientos cuya fecha de inicio esté dentro de
-                    este rango.
-                </p>
-                <InputError message={error} />
-            </div>
+            {error && (
+                <div className="sm:col-span-2">
+                    <InputError message={error} />
+                </div>
+            )}
         </>
     );
 }

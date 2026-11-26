@@ -85,11 +85,11 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                         prefetch
                         className="flex items-center gap-3"
                     >
-                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white shadow-xs ring-1 ring-white/25">
+                        <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-xs ring-1 ring-white/25">
                             <img
-                                src="/images/cana-escala.svg"
+                                src="/images/logo-escala.jpg"
                                 alt=""
-                                className="size-8"
+                                className="size-full object-cover"
                             />
                         </span>
                         <span className="text-lg font-bold">{name}</span>

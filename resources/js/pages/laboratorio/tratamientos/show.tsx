@@ -11,6 +11,7 @@ import {
 } from '@/components/escaneo-detalle';
 import type { EscaneoVista } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
+import { EtiquetaCampo } from '@/components/info-ayuda';
 import InputError from '@/components/input-error';
 import { Seccion } from '@/components/seccion';
 import { Badge } from '@/components/ui/badge';
@@ -331,9 +332,11 @@ function FormularioTratamiento({
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-1.5">
-                            <Label htmlFor="editar-nombre">
-                                Nombre del tratamiento
-                            </Label>
+                            <EtiquetaCampo
+                                htmlFor="editar-nombre"
+                                etiqueta="Nombre del tratamiento"
+                                ayuda="Identifica el ensayo o lote para distinguirlo en el historial y al comparar."
+                            />
                             <Input
                                 id="editar-nombre"
                                 name="nombre"
@@ -341,18 +344,16 @@ function FormularioTratamiento({
                                 maxLength={255}
                                 required
                             />
-                            <p className="text-xs text-muted-foreground">
-                                Identifica el ensayo o lote para distinguirlo en
-                                el historial y al comparar.
-                            </p>
                             <InputError message={errors.nombre} />
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-1.5">
-                                <Label htmlFor="editar-fecha-inicio">
-                                    Fecha de inicio
-                                </Label>
+                                <EtiquetaCampo
+                                    htmlFor="editar-fecha-inicio"
+                                    etiqueta="Fecha de inicio"
+                                    ayuda="Día en que inició la incubación."
+                                />
                                 <Input
                                     id="editar-fecha-inicio"
                                     name="fecha_inicio"
@@ -370,9 +371,6 @@ function FormularioTratamiento({
                                     }
                                     required
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    Día en que inició la incubación.
-                                </p>
                                 <InputError
                                     message={
                                         erroresFechas.inicio ??
@@ -382,9 +380,11 @@ function FormularioTratamiento({
                             </div>
 
                             <div className="grid gap-1.5">
-                                <Label htmlFor="editar-fecha-fin">
-                                    Fecha de término
-                                </Label>
+                                <EtiquetaCampo
+                                    htmlFor="editar-fecha-fin"
+                                    etiqueta="Fecha de término"
+                                    ayuda="Día de cierre o evaluación (opcional)."
+                                />
                                 <Input
                                     id="editar-fecha-fin"
                                     name="fecha_fin"
@@ -401,9 +401,6 @@ function FormularioTratamiento({
                                         setFechaFin(e.target.value)
                                     }
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    Día de cierre o evaluación (opcional).
-                                </p>
                                 <InputError
                                     message={
                                         erroresFechas.fin ?? errors.fecha_fin
@@ -421,9 +418,11 @@ function FormularioTratamiento({
 
                         <div className="grid gap-5 sm:grid-cols-2">
                             <div className="grid gap-1.5">
-                                <Label htmlFor="editar-temperatura">
-                                    Temperatura
-                                </Label>
+                                <EtiquetaCampo
+                                    htmlFor="editar-temperatura"
+                                    etiqueta="Temperatura"
+                                    ayuda="Temperatura de incubación del ensayo."
+                                />
                                 <select
                                     id="editar-temperatura"
                                     name="temperatura"
@@ -440,14 +439,15 @@ function FormularioTratamiento({
                                         </option>
                                     ))}
                                 </select>
-                                <p className="text-xs text-muted-foreground">
-                                    Temperatura de incubación del ensayo.
-                                </p>
                                 <InputError message={errors.temperatura} />
                             </div>
 
                             <div className="grid gap-1.5">
-                                <Label htmlFor="editar-estado">Estado</Label>
+                                <EtiquetaCampo
+                                    htmlFor="editar-estado"
+                                    etiqueta="Estado"
+                                    ayuda="Controla si se pueden agregar más tallos."
+                                />
                                 <select
                                     id="editar-estado"
                                     name="estado"
@@ -462,9 +462,6 @@ function FormularioTratamiento({
                                         Cerrado (ya no admite escaneos)
                                     </option>
                                 </select>
-                                <p className="text-xs text-muted-foreground">
-                                    Controla si se pueden agregar más tallos.
-                                </p>
                                 <InputError message={errors.estado} />
                             </div>
                         </div>

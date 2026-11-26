@@ -19,12 +19,12 @@ import type { RevisionMascara } from '@/components/editor-mascara';
 import { NivelBadge } from '@/components/escaneo-detalle';
 import type { NivelSeveridad } from '@/components/escaneo-detalle';
 import Heading from '@/components/heading';
+import { EtiquetaCampo } from '@/components/info-ayuda';
 import InputError from '@/components/input-error';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -731,16 +731,15 @@ function Campo({
 }: {
     id: string;
     etiqueta: string;
-    ayuda?: ReactNode;
+    ayuda?: string;
     error?: string;
     className?: string;
     children: ReactNode;
 }) {
     return (
         <div className={cn('grid gap-1.5', className)}>
-            <Label htmlFor={id}>{etiqueta}</Label>
+            <EtiquetaCampo htmlFor={id} etiqueta={etiqueta} ayuda={ayuda} />
             {children}
-            {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
             <InputError message={error} />
         </div>
     );

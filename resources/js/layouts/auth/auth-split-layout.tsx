@@ -25,11 +25,11 @@ export default function AuthSplitLayout({
                     href={home()}
                     className="flex animate-in flex-col items-center gap-3 duration-700 fade-in slide-in-from-top-4"
                 >
-                    <span className="flex size-22 items-center justify-center rounded-full bg-white shadow-xl ring-2 ring-white/40">
+                    <span className="flex size-22 items-center justify-center overflow-hidden rounded-full bg-white shadow-xl ring-2 ring-white/40">
                         <img
-                            src="/images/cana-escala.svg"
+                            src="/images/logo-escala.jpg"
                             alt=""
-                            className="size-18"
+                            className="size-full scale-105 object-cover"
                         />
                     </span>
                     <span className="text-2xl font-bold tracking-wide text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">

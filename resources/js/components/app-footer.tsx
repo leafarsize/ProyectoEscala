@@ -17,7 +17,7 @@ export function AppFooter() {
                     </p>
                 </div>
                 <p>
-                    © {new Date().getFullYear()} {name} Análisis de daño en
+                    © {new Date().getFullYear()} {name} · Análisis de daño en
                     tallos de caña
                 </p>
             </div>

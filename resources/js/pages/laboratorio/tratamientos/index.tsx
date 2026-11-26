@@ -334,20 +334,20 @@ export default function Tratamientos({
                     </CardContent>
                 </Card>
 
-                {/* Encendido de la paginación, justo debajo de los filtros */}
+                {/* Botón para ver todos de corrido en vez de paginar, justo debajo de los filtros */}
                 <Toggle
                     variant="outline"
-                    pressed={paginar}
-                    onPressedChange={(valor) => consultar({ paginar: valor })}
+                    pressed={!paginar}
+                    onPressedChange={(valor) => consultar({ paginar: !valor })}
                     title={
                         paginar
-                            ? 'Paginación activada. Clic para ver todos los tratamientos de corrido.'
-                            : 'Paginación desactivada: se ven todos. Clic para repartirlos en páginas.'
+                            ? 'Vista paginada. Clic para ver todos los tratamientos de corrido.'
+                            : 'Se ven todos los tratamientos de corrido. Clic para repartirlos en páginas.'
                     }
                     className="w-fit px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
                 >
                     <BookOpen className="size-4" />
-                    Paginación
+                    Ver todos
                 </Toggle>
 
                 {/* Listado de Tratamientos o estado vacío */}

@@ -1,6 +1,7 @@
 import { Form, Head, Link } from '@inertiajs/react';
 import UsuariosController from '@/actions/App/Http/Controllers/UsuariosController';
 import Heading from '@/components/heading';
+import { EtiquetaCampo } from '@/components/info-ayuda';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -42,7 +43,11 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                 <>
                                     <CardContent className="flex flex-col gap-5">
                                         <div className="grid gap-1.5">
-                                            <Label htmlFor="name">Nombre</Label>
+                                            <EtiquetaCampo
+                                                htmlFor="name"
+                                                etiqueta="Nombre"
+                                                ayuda="Nombre completo como aparecerá en los reportes."
+                                            />
                                             <Input
                                                 id="name"
                                                 name="name"
@@ -50,17 +55,15 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                 autoComplete="name"
                                                 placeholder="Nombre y apellidos"
                                             />
-                                            <p className="text-xs text-muted-foreground">
-                                                Nombre completo como aparecerá
-                                                en los reportes.
-                                            </p>
                                             <InputError message={errors.name} />
                                         </div>
 
                                         <div className="grid gap-1.5">
-                                            <Label htmlFor="email">
-                                                Correo
-                                            </Label>
+                                            <EtiquetaCampo
+                                                htmlFor="email"
+                                                etiqueta="Correo"
+                                                ayuda="Se usará para iniciar sesión en la plataforma."
+                                            />
                                             <Input
                                                 id="email"
                                                 name="email"
@@ -69,17 +72,17 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                 autoComplete="off"
                                                 placeholder="persona@escala.test"
                                             />
-                                            <p className="text-xs text-muted-foreground">
-                                                Se usará para iniciar sesión en
-                                                la plataforma.
-                                            </p>
                                             <InputError
                                                 message={errors.email}
                                             />
                                         </div>
 
                                         <div className="grid gap-1.5">
-                                            <Label htmlFor="rol">Rol</Label>
+                                            <EtiquetaCampo
+                                                htmlFor="rol"
+                                                etiqueta="Rol"
+                                                ayuda="Define a qué secciones y acciones tendrá acceso."
+                                            />
                                             <select
                                                 id="rol"
                                                 name="rol"
@@ -99,10 +102,6 @@ export default function CrearUsuario({ roles }: { roles: RolOpcion[] }) {
                                                     </option>
                                                 ))}
                                             </select>
-                                            <p className="text-xs text-muted-foreground">
-                                                Define a qué secciones y
-                                                acciones tendrá acceso.
-                                            </p>
                                             <InputError message={errors.rol} />
                                         </div>
 
